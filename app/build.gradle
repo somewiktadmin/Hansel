@@ -1,3 +1,6 @@
+
+// For Hansel-v0.97 Note: VERSIONCODE must be an integer  (84GB later...)
+
 plugins {
     id 'com.android.application'
 }
