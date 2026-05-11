@@ -18,6 +18,7 @@ public class MainActivity extends Activity {
 
     public static WebView webView;
 
+    // 2026-05-10  for Hansel-v0.97 yay
     // At Hansel v1 and 0.94, start using the number 1094
     private static final int REQUEST_TREE = 1094;
 
