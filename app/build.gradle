@@ -1,6 +1,3 @@
-
-// For Hansel-v0.97 Note: VERSIONCODE must be an integer  (84GB later...)
-
 plugins {
     id 'com.android.application'
 }
@@ -13,7 +10,7 @@ android {
         minSdk 21
         targetSdk 34
         versionCode 15 //must be integer
-        versionName "v0.975"
+        versionName "v0.975" // For Hansel-v0.97 Note: VERSIONCODE must be an integer  (84GB later...) 5/11/2026
 
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
