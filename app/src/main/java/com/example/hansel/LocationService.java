@@ -1,4 +1,4 @@
-// Hansel - GPS breadcrumb logger v0.94
+// Hansel - GPS breadcrumb logger v0.97
 // Copyright (C) 2026 GrimmsTales
 // GNU General Public License v3 -- https://www.gnu.org/licenses/gpl-3.0.html
 
