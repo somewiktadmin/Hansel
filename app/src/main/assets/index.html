@@ -1,0 +1,793 @@
+<!doctype html>
+<html>
+    <head>
+        <meta content="width=device-width, initial-scale=1" name="viewport" />
+        <style>
+            body {
+                font-family: sans-serif;
+                background: #111;
+                color: #eee;
+                text-align: center;
+            }
+
+            button,
+            select {
+                font-size: 16px;
+                padding: 10px;
+                margin: 6px;
+                width: 40%;
+            }
+            .sound-btn {
+                font-size: 14px;
+                padding: 6px 8px;
+                margin: 3px;
+                width: auto;
+                min-width: 70px;
+                display: inline-block;
+            }
+            #soundPanel {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            canvas {
+                margin-top: 10px;
+                background: #000;
+                width: 95%;
+                height: auto;
+            }
+        </style>
+    </head>
+
+    <body>
+        <h2>Hansel - (field notes) v0.94</h2>
+        <h4>Hansel-app logs paths. Gretel-app listens.</h4>
+
+        <label>Sample Interval</label>
+        <select id="interval" onchange="AndroidBridge.setInterval(this.value)">
+            <option value="1000">1 sec</option>
+            <option value="5000">5 sec</option>
+            <option value="15000">15 sec</option>
+            <option selected value="30000">30 sec</option>
+            <option value="60000">60 sec</option>
+            <option value="300000">5 min</option>
+            <option value="3600000">1 hr</option>
+        </select>
+
+        <br />
+
+        <button onclick="start()">START</button>
+        <button onclick="stop()">STOP</button>
+
+        <div id="status">Idle</div>
+
+        <pre id="readout">Waiting...</pre>
+
+        <canvas height="350" id="map" width="350"></canvas>
+        <canvas height="250" id="graph" width="350"></canvas>
+        <div id="graphScale" style="font-size: 12px; color: #888"></div>
+        <button class="sound-btn" onclick="resetToKilauea()">
+            Reset graph scale to Kilauea
+        </button>
+
+        <button onclick="mark()">MARK</button>
+
+        <div id="soundPanel"></div>
+
+        <input
+            id="newSound"
+            placeholder="Add new sound..."
+            style="width: 90%; font-size: 16px; padding: 6px"
+        />
+        <button onclick="addSound()">Add</button>
+
+        <div style="margin-top: 10px">
+            <input
+                id="noteInput"
+                placeholder="Add a one-time note..."
+                style="width: 90%; font-size: 16px; padding: 6px"
+            />
+            <button onclick="submitNote()">Add</button>
+        </div>
+
+        <div id="status2">Idle</div>
+
+        <textarea
+            id="logView"
+            rows="12"
+            style="width: 99%; background: #000; color: #0f0; font-size: 10px"
+        ></textarea>
+
+        <select id="replaySpeed">
+            <option value="500">0.5s</option>
+            <option value="200">0.2s</option>
+            <option value="100">0.1s</option>
+            <option value="50" selected>50ms</option>
+            <option value="10">10ms</option>
+            <option value="1">1ms</option>
+        </select>
+        <button onclick="replay()">Replay</button>
+
+        <button onclick="simulate()">SIM</button>
+
+        <script>
+            const HANSEL_VERSION = "0.94";
+
+            window.onerror = function (msg, src, line) {
+                if (line)
+                    document.getElementById("status").innerText =
+                        "ERR: " + msg + " @ " + line;
+            };
+
+            alert("JS loaded");
+            document.getElementById("status").innerText = "JS loaded.";
+
+            // best fix we'll get until another illegal drone flies over
+            const NORTH_VENT_LAT = 19.402;
+            const NORTH_VENT_LON = -155.29;
+
+            let isReplaying = false;
+            let replayInterval = null;
+
+            let autoAltMin = null;
+            let autoAltMax = null;
+
+            let overrideAltMin = null;
+            let overrideAltMax = null;
+
+            let rollover = 3600;
+
+            function updateAltRange(alt) {
+                if (autoAltMin === null || alt < autoAltMin) autoAltMin = alt;
+                if (autoAltMax === null || alt > autoAltMax) autoAltMax = alt;
+            }
+
+            function overrideMin() {
+                let v = prompt(
+                    "Force min altitude (ft):",
+                    overrideAltMin ??
+                        Math.floor((autoAltMin || 3000) / 500) * 500,
+                );
+                if (v === null) return;
+                overrideAltMin = parseInt(v);
+            }
+
+            function overrideMax() {
+                let v = prompt(
+                    "Force max altitude (ft):",
+                    overrideAltMax ??
+                        Math.ceil((autoAltMax || 4500) / 500) * 500,
+                );
+                if (v === null) return;
+                overrideAltMax = parseInt(v);
+            }
+
+            function resetToKilauea() {
+                overrideAltMin = null;
+                overrideAltMax = null;
+                autoAltMin = 3000;
+                autoAltMax = 4500;
+            }
+
+            function toHST() {
+                let now = new Date();
+                let Y = now.getFullYear();
+                let M = String(now.getMonth() + 1).padStart(2, "0");
+                let D = String(now.getDate()).padStart(2, "0");
+                let h = String(now.getHours()).padStart(2, "0");
+                let m = String(now.getMinutes()).padStart(2, "0");
+                let s = String(now.getSeconds()).padStart(2, "0");
+                return `${Y}-${M}-${D}_${h}-${m}-${s}`;
+            }
+
+            function getDisplayRange() {
+                return {
+                    min: overrideAltMin !== null ? overrideAltMin : autoAltMin,
+                    max: overrideAltMax !== null ? overrideAltMax : autoAltMax,
+                };
+            }
+
+            function distToNorthVent(lat, lon) {
+                const R = 20925722; // earth radius in feet
+                const dLat = ((lat - NORTH_VENT_LAT) * Math.PI) / 180;
+                const dLon = ((lon - NORTH_VENT_LON) * Math.PI) / 180;
+                const a =
+                    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos((NORTH_VENT_LAT * Math.PI) / 180) *
+                        Math.cos((lat * Math.PI) / 180) *
+                        Math.sin(dLon / 2) *
+                        Math.sin(dLon / 2);
+                const ft = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * R;
+                const mi = ft / 5280;
+
+                let display, log;
+
+                if (ft < 2640) {
+                    const ff = Math.round(ft / 360);
+                    display =
+                        Math.round(ft).toLocaleString() +
+                        " ft / " +
+                        ff +
+                        " football fields";
+                    log = Math.round(ft) + "ft";
+                } else if (mi < 100) {
+                    display =
+                        Math.round(ft).toLocaleString() +
+                        " ft / " +
+                        mi.toFixed(1) +
+                        " mi";
+                    log = mi.toFixed(1) + "mi";
+                } else {
+                    display = Math.round(mi).toLocaleString() + " mi";
+                    log = Math.round(mi) + "mi";
+                }
+
+                return { display, log };
+            }
+
+            function submitNote() {
+                let input = document.getElementById("noteInput");
+                let val = input.value.trim();
+                if (!val) return;
+                mark(val);
+                input.value = "";
+                input.blur(); //remove keyboard
+            }
+
+            document
+                .getElementById("noteInput")
+                .addEventListener("keydown", function (e) {
+                    if (e.key === "Enter") {
+                        submitNote();
+                    }
+                });
+
+            document
+                .getElementById("newSound")
+                .addEventListener("keydown", function (e) {
+                    if (e.key === "Enter") {
+                        addSound();
+                    }
+                });
+
+            let logLines = [];
+
+            function sanitizeNote(s) {
+                return s
+                    .replace(/[\r\n]+/g, " ")
+                    .replace(/[^\x20-\x7E]/g, "")
+                    .trim();
+            }
+
+            // This formats stuff for display in the goofy scrollbox
+            function appendLog(d) {
+                let ts = d.t
+                    .replace("_", " ")
+                    .replace(/-(\d{2})-(\d{2})$/, ":$1:$2");
+
+                let note = d.note ? " note: " + sanitizeNote(d.note) : "";
+                let line = `${ts} @ ${d.lat},${d.lon} (${d.alt}')${note}`;
+                //let line = `${ts} @ ${d.lat},${d.lon} (${d.alt}') <${d.ventDist || "?"}>${note}`;
+                logLines.push(line);
+
+                if (logLines.length > 400) {
+                    logLines.shift();
+                }
+
+                let ta = document.getElementById("logView");
+                ta.value = logLines.join("\n");
+                ta.scrollTop = ta.scrollHeight;
+            }
+
+            let sounds = [
+                "chuff",
+                "CHUFF",
+                "lava fall",
+                "hiss",
+                "burp",
+                "bacon sizzle",
+                "rapids",
+                "waterfall",
+                "growl",
+                "purr",
+                "clunker",
+                "thud",
+                "birds",
+                "garage door",
+                "hanger bay door",
+                "subway train",
+                "wind",
+                "Wind",
+                "WIND NOISE",
+                "noise",
+                "talking",
+                "Pele voice",
+                "humans",
+                "tourists",
+            ];
+
+            function addSound() {
+                let val = document.getElementById("newSound").value.trim();
+                if (!val) return;
+
+                sounds.push(val);
+                document.getElementById("newSound").value = "";
+
+                rebuildButtons();
+                saveSounds();
+            }
+
+            function buildSoundButtons() {
+                const panel = document.getElementById("soundPanel");
+
+                sounds.forEach((s) => {
+                    let b = document.createElement("button");
+                    b.className = "sound-btn";
+                    b.innerText = s;
+                    b.onclick = () => mark(s);
+                    panel.appendChild(b);
+                });
+            }
+
+            function rebuildButtons() {
+                const panel = document.getElementById("soundPanel");
+                panel.innerHTML = "";
+
+                //absolutely not alphabetical, absolutely not lowercase only
+                //sounds.sort(); // keep alphabetical  --> NO
+
+                sounds.forEach((s) => {
+                    let b = document.createElement("button");
+                    b.className = "sound-btn";
+                    b.innerText = s;
+                    b.onclick = () => mark(s);
+                    panel.appendChild(b);
+                });
+            }
+
+            function saveSounds() {
+                localStorage.setItem("sounds", JSON.stringify(sounds));
+            }
+
+            function loadSounds() {
+                let s = localStorage.getItem("sounds");
+                if (s) sounds = JSON.parse(s);
+            }
+
+            buildSoundButtons();
+            loadSounds();
+            rebuildButtons();
+            saveSounds();
+
+            let activeStart = null;
+            let activeLast = null;
+
+            function registerActivity() {
+                let now = Date.now();
+
+                if (!activeStart) activeStart = now;
+                if (!activeLast) activeLast = now;
+
+                let elapsed = now - activeStart;
+                let tapping = now - activeLast;
+
+                if (tapping > 30000 && elapsed < 90000) {
+                    // if they already looked away, no need to zap
+                    activeStart = null;
+                }
+
+                if (tapping < 30000 && elapsed > 90000) {
+                    warnUser(); //constantly tapping away, forgetting the world
+                    activeStart = null; // reset after warning
+                }
+            }
+
+            function warnUser() {
+                // quick flash
+                document.body.style.background = "#400";
+
+                if (navigator.vibrate) {
+                    navigator.vibrate([100, 50, 100]);
+                }
+
+                setTimeout(() => {
+                    document.body.style.background = "#111";
+                }, 300);
+
+                // optional text cue
+                document.getElementById("status2").innerText = "LOOK UP";
+            }
+
+            document.addEventListener("touchstart", registerActivity);
+            document.addEventListener("click", registerActivity);
+
+            let points = [];
+
+            const map = document.getElementById("map");
+            const mctx = map.getContext("2d");
+
+            map.width = map.clientWidth;
+            map.height = map.width;
+
+            const graph = document.getElementById("graph");
+            const gctx = graph.getContext("2d");
+
+            graph.width = graph.clientWidth;
+
+            const img = new Image();
+            img.src = "map.png"; //  static 2019-style image
+
+            // Example bounds around north vent (adjust to image!)
+            let bounds = {
+                latMin: 19.37,
+                latMax: 19.45,
+                lonMin: -155.33,
+                lonMax: -155.25,
+            };
+
+            function latLonToXY(lat, lon) {
+                let x =
+                    ((lon - bounds.lonMin) / (bounds.lonMax - bounds.lonMin)) *
+                    map.width;
+                let y =
+                    ((bounds.latMax - lat) / (bounds.latMax - bounds.latMin)) *
+                    map.height;
+                return { x, y };
+            }
+
+            function say(something) {
+                document.getElementById("status2").innerText = something;
+                //appendLog(something);
+                logLines.push(something); // raw line, no formatting
+                let ta = document.getElementById("logView");
+                ta.value = logLines.join("\n");
+                ta.scrollTop = ta.scrollHeight;
+            }
+
+            function color(acc) {
+                if (acc < 5) return "#00ff00";
+                if (acc < 10) return "#88ff00";
+                if (acc < 20) return "#ffff00";
+                if (acc < 50) return "#ff8800";
+                return "#ff0000";
+            }
+
+            function drawMap() {
+                if (img.complete) {
+                    mctx.drawImage(img, 0, 0, map.width, map.height);
+                }
+
+                for (let p of points) {
+                    let xy = latLonToXY(p.lat, p.lon);
+                    mctx.fillStyle = color(p.acc);
+                    mctx.beginPath();
+                    mctx.arc(xy.x, xy.y, 3, 0, Math.PI * 2);
+                    mctx.fill();
+                }
+            }
+
+            // 2026-05-07 including the never-shrink rules
+            function drawGraph() {
+                let slice = points.slice(-100);
+
+                gctx.clearRect(0, 0, graph.width, graph.height);
+                if (slice.length < 2) return;
+
+                // get display range -- overrides take priority, then auto, then Kilauea defaults
+                let range = getDisplayRange();
+                let rawMin = range.min !== null ? range.min : 3000;
+                let rawMax = range.max !== null ? range.max : 4500;
+
+                // quantize to 500ft buckets -- only ever expand, never shrink
+                let min = Math.floor(rawMin / 500) * 500;
+                let max = Math.ceil(rawMax / 500) * 500;
+                if (max === min) max += 500;
+
+                console.log(
+                    "range",
+                    range,
+                    "rawMin",
+                    rawMin,
+                    "rawMax",
+                    rawMax,
+                    "min",
+                    min,
+                    "max",
+                    max,
+                );
+
+                // update graphScale div
+                let lastPt = points[points.length - 1];
+                let ventStr = lastPt
+                    ? distToNorthVent(lastPt.lat, lastPt.lon).display
+                    : " ";
+                document.getElementById("graphScale").innerText =
+                    "scale: " +
+                    min +
+                    " to " +
+                    max +
+                    " ft    |    north vent: " +
+                    ventStr;
+                document.getElementById("graphScale").style.textAlign = "left";
+
+                gctx.fillStyle = "#888";
+                gctx.font = "20px sans-serif";
+                gctx.textAlign = "right";
+
+                for (let a = min; a <= max; a += 500) {
+                    let y =
+                        graph.height - ((a - min) / (max - min)) * graph.height;
+                    gctx.strokeStyle = "#222";
+                    gctx.beginPath();
+                    gctx.moveTo(0, y);
+                    gctx.lineTo(graph.width, y);
+                    gctx.stroke();
+                    gctx.fillText(a + " ft", 80, y + 3);
+                }
+
+                for (let i = 1; i < slice.length; i++) {
+                    let x1 = ((i - 1) / 100) * graph.width;
+                    let x2 = (i / 100) * graph.width;
+
+                    let y1 =
+                        graph.height -
+                        ((slice[i - 1].alt - min) / (max - min)) * graph.height;
+                    let y2 =
+                        graph.height -
+                        ((slice[i].alt - min) / (max - min)) * graph.height;
+
+                    gctx.strokeStyle = "#00ccff";
+                    gctx.lineWidth = 1;
+                    gctx.beginPath();
+                    gctx.moveTo(x1, y1);
+                    gctx.lineTo(x2, y2);
+                    gctx.stroke();
+
+                    if (slice[i].note) {
+                        gctx.fillStyle = "#ffcc00";
+                        gctx.beginPath();
+                        gctx.arc(x2, y2, 5, 0, Math.PI * 2);
+                        gctx.fill();
+                    }
+                }
+
+                gctx.strokeStyle = "#777777";
+                gctx.lineWidth = 3;
+                gctx.strokeRect(0, 0, graph.width, graph.height);
+            }
+
+            function updateUI(d) {
+                let lat = fmtLatLon(d.lat);
+                let lon = fmtLatLon(d.lon);
+                let alt = Math.round(d.alt * 10) / 10;
+                let acc = Math.round(d.acc);
+
+                if (d.note) {
+                    //alert("MARK received");
+                    document.getElementById("status2").innerText = d.note;
+                }
+
+                let ft = d.t
+                    .replace("_", " ")
+                    .replace(/-(\d{2})-(\d{2})$/, ":$1:$2");
+
+                document.getElementById("readout").innerText =
+                    `Lat,Lon: ${lat}, ${lon} \n Alt: ${alt} Acc: ${acc} \n ${ft} Pts: ${points.length}`;
+            }
+
+            function fmtLatLon(v) {
+                let val = Math.round(parseFloat(v) * 1000000) / 1000000;
+                const decimals = val.toString().split(".")[1] || "";
+                if (decimals.length < 6) {
+                    val += 0.000001;
+                    val = Math.round(val * 1000000) / 1000000;
+                }
+                return val;
+            }
+
+            // same as onGPSUpdate() without filing the data again
+            function replayPoint(data) {
+                let d = JSON.parse(data);
+                if (!d.t) return;
+                d.lat = fmtLatLon(d.lat);
+                d.lon = fmtLatLon(d.lon);
+                d.alt = Math.round(d.alt * 10) / 10;
+                d.acc = Math.round(d.acc * 10) / 10;
+                updateAltRange(d.alt);
+                points.push(d);
+                let vent = distToNorthVent(d.lat, d.lon);
+                d.ventDist = vent.log;
+                appendLog(d);
+                if (points.length > 500) points.shift();
+                updateUI(d);
+                drawMap();
+                drawGraph();
+            }
+
+            function onGPSUpdate(data) {
+                //document.getElementById("status2").innerText = "GPS update received";
+                if (isReplaying) return;
+
+                let d = JSON.parse(data);
+                if (!d.t) {
+                    logLines.push(data); // raw line, no formatting
+                    let ta = document.getElementById("logView");
+                    ta.value = logLines.join("\n");
+                    ta.scrollTop = ta.scrollHeight;
+                    return;
+                }
+                d.lat = fmtLatLon(d.lat);
+                d.lon = fmtLatLon(d.lon);
+                d.alt = Math.round(d.alt * 10) / 10;
+                d.acc = Math.round(d.acc * 10) / 10;
+                updateAltRange(d.alt); // <-- add this line for min/max calcs
+                points.push(d);
+                let vent = distToNorthVent(d.lat, d.lon);
+                d.ventDist = vent.log;
+                appendLog(d);
+
+                if (d.note) {
+                    console.log("MARK received in UI", d);
+                }
+
+                if (points.length > 500) points.shift();
+
+                updateUI(d);
+                drawMap();
+                drawGraph();
+            }
+
+            function start() {
+                say("START pressed");
+
+                if (typeof AndroidBridge === "undefined") {
+                    say("No bridge!");
+                    return;
+                }
+
+                if (typeof AndroidBridge.startLogging !== "function") {
+                    say("startLogging missing!");
+                    return;
+                }
+
+                AndroidBridge.startLogging(
+                    document.getElementById("interval").value,
+                    rollover,
+                );
+
+                say("startLogging called");
+                document.getElementById("status").innerText = "Running";
+            }
+
+            function stop() {
+                if (isReplaying) {
+                    clearInterval(replayInterval);
+                    replayInterval = null;
+                    isReplaying = false;
+                    document.getElementById("status").innerText =
+                        "Replay stopped";
+                    return;
+                }
+                if (typeof AndroidBridge !== "undefined") {
+                    AndroidBridge.stopLogging();
+                    document.getElementById("status").innerText = "Stopped";
+                }
+            }
+
+            let lastMarkTime = 0;
+
+            function mark(note = "M") {
+                let now = Date.now(); // Unix timestamp 1777777777
+
+                document.getElementById("status2").innerText = "MARK pressed";
+
+                if (now - lastMarkTime < 5000) {
+                    return; // soft limit of 5 seconds between each button
+                }
+
+                lastMarkTime = now;
+
+                if (typeof AndroidBridge !== "undefined") {
+                    let d = points[points.length - 1];
+                    if (!d) return;
+
+                    let ft = toHST(); // string formatted time
+
+                    let obj = {
+                        t: ft,
+                        lat: fmtLatLon(d.lat),
+                        lon: fmtLatLon(d.lon),
+                        alt: Math.round(d.alt * 10) / 10,
+                        acc: Math.round(d.acc),
+                        note: note,
+                    };
+
+                    //onGPSUpdate(JSON.stringify(obj));
+                    AndroidBridge.mark(JSON.stringify(obj));
+                }
+            }
+
+            function replay() {
+                let fileList = JSON.parse(AndroidBridge.getFileList());
+
+                document.getElementById("status").scrollIntoView();
+                if (!fileList.length) {
+                    say("No files found");
+                    return;
+                }
+
+                isReplaying = true;
+
+                let speed = parseInt(
+                    document.getElementById("replaySpeed").value,
+                );
+                let allLines = [];
+
+                for (let path of fileList) {
+                    say("Reading " + path);
+                    let contents = AndroidBridge.readFile(path);
+                    let lines = contents.split("\n").filter((l) => l.trim());
+                    allLines = allLines.concat(lines);
+                }
+
+                //say("Replaying " + allLines.length + " points");
+
+                let i = 0;
+                replayInterval = setInterval(() => {
+                    if (i >= allLines.length) {
+                        clearInterval(replayInterval);
+                        isReplaying = false;
+                        say("Replay done");
+                        return;
+                    }
+                    try {
+                        replayPoint(allLines[i]);
+                    } catch (e) {
+                        say("replay err line " + i + ": " + e.message);
+                    }
+                    i++;
+                }, speed);
+                //start();
+            }
+
+            function simulate() {
+                //let SIM_MODE = false;
+
+                let baseAlt = 3500;
+
+                let i = 0;
+                let interval = setInterval(() => {
+                    let now = new Date();
+
+                    let t = now
+                        .toISOString()
+                        .replace("T", "_")
+                        .replace(/:/g, "-")
+                        .split(".")[0];
+
+                    let d = {
+                        t: t,
+                        lat: 19.4 + Math.random() * 0.001,
+                        lon: -155.29 + Math.random() * 0.001,
+                        alt:
+                            baseAlt +
+                            Math.sin(i / 5) * 200 +
+                            Math.random() * 20,
+                        acc: 5 + Math.random() * 10,
+                    };
+
+                    // occasional MARK
+                    if (i % 15 === 0) {
+                        d.note = "chuff";
+                    }
+
+                    onGPSUpdate(JSON.stringify(d));
+
+                    i++;
+                    if (i > 200) clearInterval(interval);
+                }, 500);
+            }
+        </script>
+    </body>
+</html>
