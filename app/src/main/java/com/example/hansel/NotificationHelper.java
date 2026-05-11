@@ -8,6 +8,8 @@ import android.os.Build;
 
 import androidx.core.app.NotificationCompat;
 
+// for Hansel-v0.97
+
 public class NotificationHelper {
 
     public static Notification build(Context ctx) {
