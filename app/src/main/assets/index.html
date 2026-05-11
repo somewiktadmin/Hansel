@@ -41,7 +41,7 @@
     </head>
 
     <body>
-        <h2>Hansel - (field notes) v0.94</h2>
+        <h2>Hansel - (field notes) v0.97</h2>
         <h4>Hansel-app logs paths. Gretel-app listens.</h4>
 
         <label>Sample Interval</label>
@@ -112,7 +112,7 @@
         <button onclick="simulate()">SIM</button>
 
         <script>
-            const HANSEL_VERSION = "0.94";
+            const HANSEL_VERSION = "0.97";
 
             window.onerror = function (msg, src, line) {
                 if (line)
@@ -120,7 +120,6 @@
                         "ERR: " + msg + " @ " + line;
             };
 
-            alert("JS loaded");
             document.getElementById("status").innerText = "JS loaded.";
 
             // best fix we'll get until another illegal drone flies over
