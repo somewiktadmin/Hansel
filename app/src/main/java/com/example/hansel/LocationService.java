@@ -56,6 +56,17 @@ public class LocationService extends Service {
     private Handler noonHandler = new Handler(Looper.getMainLooper());
     private Runnable noonRunnable;
 
+    private Handler heartbeatHandler = new Handler(Looper.getMainLooper());
+    private Runnable heartbeatRunnable;
+
+    // interval floor: 500ms was tried and produced duplicate yyyy-MM-dd_HH-mm-ss timestamps.
+    // 1000ms is the minimum safe value for second-granular datetime fields.
+    private static final int    INTERVAL_FLOOR_MS    = 1000;
+
+    // heartbeat fires once per HEARTBEAT_MS while deadband suppression is active.
+    // keeps "was I here?" evidence in the log without flooding it during idle periods.
+    private static final long   HEARTBEAT_MS         = 300_000; // 15 min
+
     // === live deadband filter (N=10, 35ft) ===
     // N=20 was overkill, N=5 overreacts, N=10 field-tuned as best balance.
     // Future: std deviation spike filter for Saddle Road cell-mode thrashing.
@@ -64,6 +75,9 @@ public class LocationService extends Service {
     private final double[] deadbandWindow   = new double[DEADBAND_N];
     private int  deadbandCount              = 0;
     private boolean deadbandFull            = false;
+
+    private boolean             isIdle               = false;
+    private Location            lastLocation         = null;
 
     private boolean deadbandSuppress(double altFt) {
         if (deadbandFull) {
@@ -84,6 +98,7 @@ public class LocationService extends Service {
     private void deadbandReset() {
         deadbandCount = 0;
         deadbandFull  = false;
+        stopHeartbeat();
     }
 
     String getHourKey(long timeMillis) {
@@ -92,18 +107,50 @@ public class LocationService extends Service {
     }
 
     public void updateInterval(int newInterval) {
-        interval = newInterval;
+        interval = Math.max(newInterval, INTERVAL_FLOOR_MS);
         if (client == null || callback == null) return;
 
         LocationRequest req = LocationRequest.create()
-                .setInterval(newInterval)
-                .setFastestInterval(newInterval)
+                .setInterval(interval)
+                .setFastestInterval(interval)
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
         if (ActivityCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_FINE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
             client.requestLocationUpdates(req, callback, Looper.getMainLooper());
+        }
+    }
+
+    private void startHeartbeat() {
+        isIdle = true;
+        heartbeatRunnable = () -> {
+            if (isIdle && lastLocation != null && writer != null) {
+                try {
+                    JSONObject obj = new JSONObject();
+                    obj.put("t",   new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date()));
+                    obj.put("lat", fmtLatLon(lastLocation.getLatitude()));
+                    obj.put("lon", fmtLatLon(lastLocation.getLongitude()));
+                    obj.put("alt", Math.round(lastLocation.getAltitude() * 3.28084));
+                    obj.put("acc", Math.round(lastLocation.getAccuracy()));
+                    obj.put("hb",  "15min");
+                    writer.write(obj.toString());
+                    writer.newLine();
+                    writer.flush();
+                } catch (Exception e) {
+                    say("heartbeat write error: " + e.getMessage());
+                }
+            }
+            heartbeatHandler.postDelayed(heartbeatRunnable, HEARTBEAT_MS);
+        };
+        heartbeatHandler.postDelayed(heartbeatRunnable, HEARTBEAT_MS);
+    }
+
+    private void stopHeartbeat() {
+        isIdle = false;
+        if (heartbeatRunnable != null) {
+            heartbeatHandler.removeCallbacks(heartbeatRunnable);
+            heartbeatRunnable = null;
         }
     }
 
@@ -420,7 +467,14 @@ public class LocationService extends Service {
 
             sendToUI(obj.toString());
 
-            if (deadbandSuppress(altFt)) return;
+            lastLocation = loc;
+
+            //if (deadbandSuppress(altFt)) return;
+            if (deadbandSuppress(altFt)) {
+                if (!isIdle) startHeartbeat();
+                return;
+            }
+            stopHeartbeat();
 
             if (writer != null) {
                 writer.write(obj.toString());
@@ -556,6 +610,7 @@ public class LocationService extends Service {
         instance = null;
 
         if (noonRunnable != null) noonHandler.removeCallbacks(noonRunnable);
+        if (heartbeatRunnable != null) heartbeatHandler.removeCallbacks(heartbeatRunnable);
 
         try {
             if (client != null && callback != null) {

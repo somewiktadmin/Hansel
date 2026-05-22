@@ -66,7 +66,9 @@ public class WebAppInterface {
 
     @JavascriptInterface
     public void stopLogging() {
-        context.stopService(new Intent(context, LocationService.class));
+        Intent i = new Intent(context, LocationService.class);
+        i.setAction(LocationService.ACTION_STOP);
+        context.startService(i);
     }
 
     @JavascriptInterface

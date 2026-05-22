@@ -109,8 +109,6 @@
         </select>
         <button onclick="replay()">Replay</button>
 
-        <button onclick="simulate()">SIM</button>
-
         <script>
             const HANSEL_VERSION = "0.97";
 
@@ -266,8 +264,8 @@
                     .replace(/-(\d{2})-(\d{2})$/, ":$1:$2");
 
                 let note = d.note ? " note: " + sanitizeNote(d.note) : "";
-                let line = `${ts} @ ${d.lat},${d.lon} (${d.alt}')${note}`;
-                //let line = `${ts} @ ${d.lat},${d.lon} (${d.alt}') <${d.ventDist || "?"}>${note}`;
+                //let line = `${ts} @ ${d.lat.toFixed(5)},${d.lon.toFixed(5)} (${d.alt}') ${d.ventDist || "?"} ${note}`;
+                let line = `${ts} @ ${d.lat.toFixed(5)},${d.lon.toFixed(5)} (${d.alt}') ${note}`;
                 logLines.push(line);
 
                 if (logLines.length > 400) {
@@ -748,44 +746,6 @@
                     i++;
                 }, speed);
                 //start();
-            }
-
-            function simulate() {
-                //let SIM_MODE = false;
-
-                let baseAlt = 3500;
-
-                let i = 0;
-                let interval = setInterval(() => {
-                    let now = new Date();
-
-                    let t = now
-                        .toISOString()
-                        .replace("T", "_")
-                        .replace(/:/g, "-")
-                        .split(".")[0];
-
-                    let d = {
-                        t: t,
-                        lat: 19.4 + Math.random() * 0.001,
-                        lon: -155.29 + Math.random() * 0.001,
-                        alt:
-                            baseAlt +
-                            Math.sin(i / 5) * 200 +
-                            Math.random() * 20,
-                        acc: 5 + Math.random() * 10,
-                    };
-
-                    // occasional MARK
-                    if (i % 15 === 0) {
-                        d.note = "chuff";
-                    }
-
-                    onGPSUpdate(JSON.stringify(d));
-
-                    i++;
-                    if (i > 200) clearInterval(interval);
-                }, 500);
             }
         </script>
     </body>
