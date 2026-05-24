@@ -8,15 +8,21 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.os.Build;
 import android.webkit.JavascriptInterface;
 
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
 import androidx.core.content.ContextCompat;
 import androidx.documentfile.provider.DocumentFile;
 
+import org.json.JSONArray;
+
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 
 public class WebAppInterface {
 
@@ -71,61 +77,96 @@ public class WebAppInterface {
         context.startService(i);
     }
 
+    private File resolveTreeUriToFile() {
+        SharedPreferences prefs = context.getSharedPreferences(
+                MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        String uriString = prefs.getString(MainActivity.PREF_TREE_URI, null);
+        LocationService.instance.say("resolveTreeUri: input=" + uriString);
+
+        if (uriString == null) {
+            LocationService.instance.say("resolveTreeUri: no URI in prefs");
+            return null;
+        }
+
+        String decoded = Uri.decode(uriString);
+        int treeIdx = decoded.indexOf("/tree/");
+        if (treeIdx < 0) {
+            LocationService.instance.say("resolveTreeUri: no /tree/ found");
+            return null;
+        }
+
+        String docId   = decoded.substring(treeIdx + 6);
+        int colonIdx   = docId.indexOf(":");
+        if (colonIdx < 0) {
+            LocationService.instance.say("resolveTreeUri: no colon in docId=" + docId);
+            return null;
+        }
+
+        String volumeId = docId.substring(0, colonIdx);
+        String path     = docId.substring(colonIdx + 1);
+        File result     = new File("/storage/" + volumeId + "/" + path);
+
+        LocationService.instance.say("resolveTreeUri: resolved=" + result.getAbsolutePath());
+        return result;
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.N)
     @JavascriptInterface
     public String getFileList() {
-        org.json.JSONArray arr = new org.json.JSONArray();
+        JSONArray arr = new JSONArray();
 
-        DocumentFile dir = getTreeDir();
-        if (dir == null) return "[]";
-
-        DocumentFile[] files = dir.listFiles();
-        if (files == null || files.length == 0) {
-            LocationService.instance.say("getFileList: no files found");
+        File dir = resolveTreeUriToFile();
+        if (dir == null) {
+            LocationService.instance.say("getFileList: could not resolve directory");
             return "[]";
         }
 
-        // filter to .ndjson, sort by name
-        java.util.ArrayList<DocumentFile> ndjson = new java.util.ArrayList<>();
-        for (DocumentFile f : files) {
-            String name = f.getName();
-            if (name != null && name.endsWith(".ndjson")) {
-                ndjson.add(f);
-            }
+        File[] files = dir.listFiles();
+        if (files == null || files.length == 0) {
+            LocationService.instance.say("getFileList: no files found in " + dir.getAbsolutePath());
+            return "[]";
         }
 
-        /* Excuse you?  no sorting OUT of chronological order, tyvm
-        ndjson.sort((a, b) -> {
-            String na = a.getName() != null ? a.getName() : "";
-            String nb = b.getName() != null ? b.getName() : "";
-            return na.compareTo(nb);
-        });
-        */
+        ArrayList<File> ndjson = new ArrayList<>();
+        for (File f : files) {
+            if (f.getName().endsWith(".ndjson")) ndjson.add(f);
+        }
+
+        ndjson.sort((a, b) -> a.getName().compareTo(b.getName()));
 
         LocationService.instance.say("getFileList: " + ndjson.size() + " files");
-
-        for (DocumentFile f : ndjson) {
+        for (File f : ndjson) {
             LocationService.instance.say("  found: " + f.getName());
-            // pass URI string -- readFile() will open it via ContentResolver
-            arr.put(f.getUri().toString());
+            arr.put(f.getAbsolutePath());
         }
 
         return arr.toString();
     }
 
     @JavascriptInterface
-    public String readFile(String uriString) {
+    public String readFile(String path) {
+        LocationService.instance.say("readFile: " + path);
         try {
-            Uri uri = Uri.parse(uriString);
-            InputStream is = context.getContentResolver().openInputStream(uri);
-            if (is == null) return "";
+            java.io.InputStream is;
+            if (path.startsWith("/")) {
+                is = new java.io.FileInputStream(path);
+            } else {
+                is = context.getContentResolver().openInputStream(Uri.parse(path));
+            }
+            if (is == null) {
+                LocationService.instance.say("readFile: null stream for " + path);
+                return "";
+            }
 
-            BufferedReader br = new BufferedReader(new InputStreamReader(is));
+            java.io.BufferedReader br = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(is));
             StringBuilder sb = new StringBuilder();
             String line;
             while ((line = br.readLine()) != null) {
                 sb.append(line).append("\n");
             }
             br.close();
+            LocationService.instance.say("readFile: done, " + sb.length() + " chars");
             return sb.toString();
 
         } catch (Exception e) {

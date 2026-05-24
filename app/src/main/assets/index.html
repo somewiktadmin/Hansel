@@ -595,7 +595,7 @@
                 points.push(d);
                 let vent = distToNorthVent(d.lat, d.lon);
                 d.ventDist = vent.log;
-                appendLog(d);
+                //appendLog(d);
                 if (points.length > 500) points.shift();
                 updateUI(d);
                 drawMap();
@@ -605,6 +605,7 @@
             function onGPSUpdate(data) {
                 //document.getElementById("status2").innerText = "GPS update received";
                 if (isReplaying) return;
+                if (!isRunning) return;
 
                 let d = JSON.parse(data);
                 if (!d.t) {
@@ -635,8 +636,15 @@
                 drawGraph();
             }
 
+            let isRunning = false;
+
             function start() {
                 say("START pressed");
+                if (isRunning) return;
+                isRunning = true;
+
+                let lvW = document.getElementById("logView").offsetWidth;
+                say( "logView.Width = " + lvW );
 
                 if (typeof AndroidBridge === "undefined") {
                     say("No bridge!");
@@ -665,10 +673,12 @@
                     document.getElementById("status").innerText =
                         "Replay stopped";
                     return;
-                }
-                if (typeof AndroidBridge !== "undefined") {
-                    AndroidBridge.stopLogging();
-                    document.getElementById("status").innerText = "Stopped";
+                } else {
+                    isRunning = false;
+                    if (typeof AndroidBridge !== "undefined") {
+                        AndroidBridge.stopLogging();
+                        document.getElementById("status").innerText = "Stopped";
+                    }
                 }
             }
 

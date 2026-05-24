@@ -1,6 +1,8 @@
-// Hansel - GPS breadcrumb logger
-// Copyright (C) 2026 GrimmsTales
-// GNU General Public License v3 -- https://www.gnu.org/licenses/gpl-3.0.html
+/*
+ * Hansel - GPS breadcrumb logger
+ * Copyright (C) 2026 GrimmsTales
+ * GNU General Public License v3 -- https://www.gnu.org/licenses/gpl-3.0.html
+ */
 
 package com.example.hansel;
 
@@ -8,8 +10,14 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+
+import androidx.annotation.RequiresApi;
 import androidx.core.content.ContextCompat;
+
+import android.os.Environment;
+import android.provider.Settings;
 import android.view.Window;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -49,6 +57,16 @@ public class MainActivity extends Activity {
         // check if user has already picked a folder
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         String savedUri = prefs.getString(PREF_TREE_URI, null);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                Intent intent = new Intent(
+                        Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:" + getPackageName())
+                );
+                startActivity(intent);
+            }
+        }
 
         if (savedUri == null) {
             // first launch -- ask user to pick a folder
