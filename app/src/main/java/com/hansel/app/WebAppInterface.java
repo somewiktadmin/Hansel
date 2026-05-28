@@ -2,7 +2,7 @@
 // Copyright (C) 2026 GrimmsTales
 // GNU General Public License v3 -- https://www.gnu.org/licenses/gpl-3.0.html
 
-package com.example.hansel;
+package com.hansel.app;
 
 import android.content.Context;
 import android.content.Intent;

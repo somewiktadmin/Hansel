@@ -41,23 +41,9 @@
     </head>
 
     <body>
-        <h2>Hansel - (field notes) v0.97</h2>
+        <h2>Hansel - (field notes) v0.98</h2>
         <h4>Hansel-app logs paths. Gretel-app listens.</h4>
 
-        <label>Sample Interval</label>
-        <select id="interval" onchange="AndroidBridge.setInterval(this.value)">
-            <option value="1000">1 sec</option>
-            <option value="5000">5 sec</option>
-            <option value="15000">15 sec</option>
-            <option selected value="30000">30 sec</option>
-            <option value="60000">60 sec</option>
-            <option value="300000">5 min</option>
-            <option value="3600000">1 hr</option>
-        </select>
-
-        <br />
-
-        <button onclick="start()">START</button>
         <button onclick="stop()">STOP</button>
 
         <div id="status">Idle</div>
@@ -68,7 +54,10 @@
         <canvas height="250" id="graph" width="350"></canvas>
         <div id="graphScale" style="font-size: 12px; color: #888"></div>
         <button class="sound-btn" onclick="resetToKilauea()">
-            Reset graph scale to Kilauea
+            Reset scale to Kilauea
+        </button>
+        <button class="sound-btn" onclick="resetTo250()">
+            Reset scale to +-250
         </button>
 
         <button onclick="mark()">MARK</button>
@@ -103,14 +92,15 @@
             <option value="500">0.5s</option>
             <option value="200">0.2s</option>
             <option value="100">0.1s</option>
-            <option value="50" selected>50ms</option>
+            <option value="50">50ms</option>
             <option value="10">10ms</option>
-            <option value="1">1ms</option>
+            <option value="1" selected>1ms</option>
         </select>
         <button onclick="replay()">Replay</button>
+        <button onclick="replay72h()">Replay 72h</button>
 
         <script>
-            const HANSEL_VERSION = "0.97";
+            const HANSEL_VERSION = "0.98";
 
             window.onerror = function (msg, src, line) {
                 if (line)
@@ -134,6 +124,8 @@
             let overrideAltMax = null;
 
             let rollover = 3600;
+
+            let interval = 30000 ; //30 seconds
 
             function updateAltRange(alt) {
                 if (autoAltMin === null || alt < autoAltMin) autoAltMin = alt;
@@ -165,6 +157,13 @@
                 overrideAltMax = null;
                 autoAltMin = 3000;
                 autoAltMax = 4500;
+            }
+
+            function resetTo250() {
+                overrideAltMin = null;
+                overrideAltMax = null;
+                autoAltMin = currentAlt - 250;
+                autoAltMax = currentAlt + 250;
             }
 
             function toHST() {
@@ -596,7 +595,7 @@
                 let vent = distToNorthVent(d.lat, d.lon);
                 d.ventDist = vent.log;
                 //appendLog(d);
-                if (points.length > 500) points.shift();
+                if (points.length > 1500) points.shift();
                 updateUI(d);
                 drawMap();
                 drawGraph();
@@ -629,7 +628,7 @@
                     console.log("MARK received in UI", d);
                 }
 
-                if (points.length > 500) points.shift();
+                if (points.length > 1500) points.shift();
 
                 updateUI(d);
                 drawMap();
@@ -640,6 +639,7 @@
 
             function start() {
                 say("START pressed");
+                drawMap(); //fscking thing isn't displaying - local asset file is NOT downloading wtf
                 if (isRunning) return;
                 isRunning = true;
 
@@ -657,12 +657,14 @@
                 }
 
                 AndroidBridge.startLogging(
-                    document.getElementById("interval").value,
-                    rollover,
-                );
+                    interval,
+                    rollover );
+
+                //AndroidBridge.setInterval(interval);
 
                 say("startLogging called");
                 document.getElementById("status").innerText = "Running";
+
             }
 
             function stop() {
@@ -679,6 +681,7 @@
                         AndroidBridge.stopLogging();
                         document.getElementById("status").innerText = "Stopped";
                     }
+                    start();
                 }
             }
 
@@ -713,6 +716,67 @@
                     //onGPSUpdate(JSON.stringify(obj));
                     AndroidBridge.mark(JSON.stringify(obj));
                 }
+            }
+
+            function replay72h() {
+                let fileList = JSON.parse(AndroidBridge.getFileList());
+
+                document.getElementById("status").scrollIntoView();
+                if (!fileList.length) {
+                    say("No files found");
+                    return;
+                }
+
+                // cutoff: 72 hours ago, formatted as yyyy-MM-dd_HH-mm-ss for string compare
+                let cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000);
+                let pad = (n) => String(n).padStart(2, "0");
+                let cutoffStr =
+                    cutoff.getFullYear() + "-" +
+                    pad(cutoff.getMonth() + 1) + "-" +
+                    pad(cutoff.getDate()) + "_" +
+                    pad(cutoff.getHours()) + "-" +
+                    pad(cutoff.getMinutes()) + "-" +
+                    pad(cutoff.getSeconds());
+
+                // skip monthly rollup files (day = 00) and anything older than cutoff
+                let recent = fileList.filter(path => {
+                    let name = path.substring(path.lastIndexOf("/") + 1);
+                    if (name.match(/^\d{4}-\d{2}-00_/)) return false; // monthly rollup
+                    return name >= cutoffStr;
+                });
+
+                say("replay72h: " + recent.length + " files after " + cutoffStr);
+
+                if (!recent.length) {
+                    say("No files in last 72h");
+                    return;
+                }
+
+                isReplaying = true;
+                let speed = parseInt(document.getElementById("replaySpeed").value);
+                let allLines = [];
+
+                for (let path of recent) {
+                    let contents = AndroidBridge.readFile(path);
+                    let lines = contents.split("\n").filter((l) => l.trim());
+                    allLines = allLines.concat(lines);
+                }
+
+                let i = 0;
+                replayInterval = setInterval(() => {
+                    if (i >= allLines.length) {
+                        clearInterval(replayInterval);
+                        isReplaying = false;
+                        say("replay72h done");
+                        return;
+                    }
+                    try {
+                        replayPoint(allLines[i]);
+                    } catch (e) {
+                        say("replay72h err line " + i + ": " + e.message);
+                    }
+                    i++;
+                }, speed);
             }
 
             function replay() {
@@ -755,8 +819,10 @@
                     }
                     i++;
                 }, speed);
-                //start();
             }
+
+            start();
+
         </script>
     </body>
 </html>

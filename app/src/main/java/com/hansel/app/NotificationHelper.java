@@ -1,4 +1,4 @@
-package com.example.hansel;
+package com.hansel.app;
 
 import android.app.Notification;
 import android.app.NotificationChannel;

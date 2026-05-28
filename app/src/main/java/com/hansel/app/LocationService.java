@@ -1,8 +1,8 @@
-// Hansel - GPS breadcrumb logger v0.97
+// Hansel - GPS breadcrumb logger v0.98
 // Copyright (C) 2026 GrimmsTales
 // GNU General Public License v3 -- https://www.gnu.org/licenses/gpl-3.0.html
 
-package com.example.hansel;
+package com.hansel.app;
 
 import android.Manifest;
 import android.app.Service;
@@ -115,6 +115,7 @@ public class LocationService extends Service {
                 .setFastestInterval(interval)
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
+        if (false)
         if (ActivityCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_FINE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
@@ -589,7 +590,12 @@ public class LocationService extends Service {
         }
 
         try {
-            startForeground(1, NotificationHelper.build(this));
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                startForeground(1, NotificationHelper.build(this),
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
+            } else {
+                startForeground(1, NotificationHelper.build(this));
+            }
             interval = intent.getIntExtra("interval", 30000);
             consolidateOldFiles();
             scheduleNoon();

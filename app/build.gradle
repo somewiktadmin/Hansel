@@ -6,11 +6,11 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.hansel"
+        applicationId "com.hansel.app"
         minSdk 21
         targetSdk 34
-        versionCode 15 //must be integer
-        versionName "v0.975" // For Hansel-v0.97 Note: VERSIONCODE must be an integer  (84GB later...) 5/11/2026
+        versionCode 16 //must be integer
+        versionName "v0.98" // For Hansel-v0.98 Note: VERSIONCODE must be an integer  (84GB later...) 5/11/2026
 
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
