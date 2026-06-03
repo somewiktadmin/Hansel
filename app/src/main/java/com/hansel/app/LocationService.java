@@ -56,28 +56,21 @@ public class LocationService extends Service {
     private Handler noonHandler = new Handler(Looper.getMainLooper());
     private Runnable noonRunnable;
 
-    private Handler heartbeatHandler = new Handler(Looper.getMainLooper());
-    private Runnable heartbeatRunnable;
-
     // interval floor: 500ms was tried and produced duplicate yyyy-MM-dd_HH-mm-ss timestamps.
     // 1000ms is the minimum safe value for second-granular datetime fields.
     private static final int    INTERVAL_FLOOR_MS    = 1000;
 
-    // heartbeat fires once per HEARTBEAT_MS while deadband suppression is active.
-    // keeps "was I here?" evidence in the log without flooding it during idle periods.
-    private static final long   HEARTBEAT_MS         = 300_000; // 15 min
-
     // === live deadband filter (N=10, 35ft) ===
     // N=20 was overkill, N=5 overreacts, N=10 field-tuned as best balance.
     // Future: std deviation spike filter for Saddle Road cell-mode thrashing.
-    private static final int    DEADBAND_N  = 10;
+    private static final int    DEADBAND_N   = 10;
     private static final double DEADBAND_FT = 35.0;
-    private final double[] deadbandWindow   = new double[DEADBAND_N];
-    private int  deadbandCount              = 0;
-    private boolean deadbandFull            = false;
-
-    private boolean             isIdle               = false;
-    private Location            lastLocation         = null;
+    private final double[] deadbandWindow  = new double[DEADBAND_N];
+    private int  deadbandCount            = 0;
+    private boolean deadbandFull         = false;
+    private Location lastLocation       = null;
+    private float lastSpd              = 0.0f;
+    private float lastCrs             = 0.0f;
 
     private boolean deadbandSuppress(double altFt) {
         if (deadbandFull) {
@@ -98,7 +91,6 @@ public class LocationService extends Service {
     private void deadbandReset() {
         deadbandCount = 0;
         deadbandFull  = false;
-        stopHeartbeat();
     }
 
     String getHourKey(long timeMillis) {
@@ -123,37 +115,6 @@ public class LocationService extends Service {
         }
     }
 
-    private void startHeartbeat() {
-        isIdle = true;
-        heartbeatRunnable = () -> {
-            if (isIdle && lastLocation != null && writer != null) {
-                try {
-                    JSONObject obj = new JSONObject();
-                    obj.put("t",   new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date()));
-                    obj.put("lat", fmtLatLon(lastLocation.getLatitude()));
-                    obj.put("lon", fmtLatLon(lastLocation.getLongitude()));
-                    obj.put("alt", Math.round(lastLocation.getAltitude() * 3.28084));
-                    obj.put("acc", Math.round(lastLocation.getAccuracy()));
-                    obj.put("hb",  "15min");
-                    writer.write(obj.toString());
-                    writer.newLine();
-                    writer.flush();
-                } catch (Exception e) {
-                    say("heartbeat write error: " + e.getMessage());
-                }
-            }
-            heartbeatHandler.postDelayed(heartbeatRunnable, HEARTBEAT_MS);
-        };
-        heartbeatHandler.postDelayed(heartbeatRunnable, HEARTBEAT_MS);
-    }
-
-    private void stopHeartbeat() {
-        isIdle = false;
-        if (heartbeatRunnable != null) {
-            heartbeatHandler.removeCallbacks(heartbeatRunnable);
-            heartbeatRunnable = null;
-        }
-    }
 
     // === get SAF tree from SharedPreferences ===
     private DocumentFile getTreeDir() {
@@ -214,7 +175,8 @@ public class LocationService extends Service {
     // Runs at startup and at noon daily.
     // Skips today, yesterday, existing monthly rollups, and non-ndjson files.
     // Monthly filename format: YYYY-MM-00_00-00-00.ndjson -- not up for debate.
-    // Hour files are deleted after successful consolidation.
+    // WAS: Hour files are deleted after successful consolidation.
+    // NOW: Files moved to ./backup/ for posterity.
     void consolidateOldFiles() {
         DocumentFile dir = getTreeDir();
         if (dir == null) return;
@@ -359,6 +321,7 @@ public class LocationService extends Service {
 
     // ===== Open new NDJSON file via SAF =====
     void openFile() {
+        //say("openFile called from: " + Thread.currentThread().toString());
         try {
             if (isFileOpen) {
                 say("openFile: already open, skipping");
@@ -459,23 +422,23 @@ public class LocationService extends Service {
                 rotateFile(hour);
             }
 
+            if (loc.hasSpeed())   lastSpd = loc.getSpeed();
+            if (loc.hasBearing()) lastCrs = loc.getBearing();
+
             JSONObject obj = new JSONObject();
             obj.put("t",   new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date()));
             obj.put("lat", fmtLatLon(loc.getLatitude()));
             obj.put("lon", fmtLatLon(loc.getLongitude()));
             obj.put("alt", Math.round(altFt));
             obj.put("acc", Math.round(loc.getAccuracy()));
+            obj.put("spd", Math.round(lastSpd * 2.23694f));
+            obj.put("crs", Math.round(lastCrs));
 
             sendToUI(obj.toString());
 
             lastLocation = loc;
 
-            //if (deadbandSuppress(altFt)) return;
-            if (deadbandSuppress(altFt)) {
-                if (!isIdle) startHeartbeat();
-                return;
-            }
-            stopHeartbeat();
+            if (deadbandSuppress(altFt)) return;
 
             if (writer != null) {
                 writer.write(obj.toString());
@@ -599,6 +562,7 @@ public class LocationService extends Service {
             interval = intent.getIntExtra("interval", 30000);
             consolidateOldFiles();
             scheduleNoon();
+            say("startId: " + startId + " opening file");
             openFile();
             startGPS();
         } catch (Exception e) {
@@ -616,7 +580,6 @@ public class LocationService extends Service {
         instance = null;
 
         if (noonRunnable != null) noonHandler.removeCallbacks(noonRunnable);
-        if (heartbeatRunnable != null) heartbeatHandler.removeCallbacks(heartbeatRunnable);
 
         try {
             if (client != null && callback != null) {

@@ -60,6 +60,11 @@ public class WebAppInterface {
 
     @JavascriptInterface
     public void startLogging(String interval, String rollover) {
+        //Prevent doubletap
+        if (LocationService.instance != null) {
+            LocationService.instance.say("startLogging: service already running, skipping");
+            return;
+        }
         Intent i = new Intent(context, LocationService.class);
         i.putExtra("interval", Integer.parseInt(interval));
         i.putExtra("rollover", Integer.parseInt(rollover));
