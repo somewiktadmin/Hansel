@@ -45,6 +45,7 @@
         <h4>Hansel-app logs paths. Gretel-app listens.</h4>
 
         <button onclick="stop()">STOP</button>
+        <button onclick="AndroidBridge.consolidateNow()">Rollup</button>
 
         <div id="status">Idle</div>
 
@@ -54,10 +55,10 @@
         <canvas height="250" id="graph" width="350"></canvas>
         <div id="graphScale" style="font-size: 12px; color: #888"></div>
         <button class="sound-btn" onclick="resetToKilauea()">
-            Reset scale to Kilauea
+            Reset to Kilauea
         </button>
         <button class="sound-btn" onclick="resetTo250()">
-            Reset scale to +-250
+            Reset to +-250
         </button>
 
         <button onclick="mark()">MARK</button>
@@ -97,7 +98,7 @@
             <option value="1" selected>1ms</option>
         </select>
         <button onclick="replay()">Replay</button>
-        <button onclick="replay72h()">Replay 72h</button>
+        <button onclick="replay72h()">72hr</button>
 
         <script>
             const HANSEL_VERSION = "0.98";
@@ -119,6 +120,7 @@
 
             let autoAltMin = null;
             let autoAltMax = null;
+            let currentAlt = null;
 
             let overrideAltMin = null;
             let overrideAltMax = null;
@@ -128,6 +130,7 @@
             let interval = 30000 ; //30 seconds
 
             function updateAltRange(alt) {
+                currentAlt = alt;
                 if (autoAltMin === null || alt < autoAltMin) autoAltMin = alt;
                 if (autoAltMax === null || alt > autoAltMax) autoAltMax = alt;
             }

@@ -33,6 +33,13 @@ public class WebAppInterface {
     }
 
     @JavascriptInterface
+    public void consolidateNow() {
+        if (LocationService.instance != null) {
+            LocationService.instance.consolidateOldFiles();
+        }
+    }
+
+    @JavascriptInterface
     public void setInterval(String interval) {
         if (LocationService.instance != null) {
             LocationService.instance.updateInterval(Integer.parseInt(interval));
