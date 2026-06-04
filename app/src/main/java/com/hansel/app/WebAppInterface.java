@@ -1,6 +1,6 @@
 // Hansel - GPS breadcrumb logger v0.97
 // Copyright (C) 2026 GrimmsTales
-// GNU General Public License v3 -- https://www.gnu.org/licenses/gpl-3.0.html
+// GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
 
 package com.hansel.app;
 
@@ -52,7 +52,7 @@ public class WebAppInterface {
                 MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
         String uriString = prefs.getString(MainActivity.PREF_TREE_URI, null);
         if (uriString == null) {
-            LocationService.instance.say("No folder selected -- open app to pick one");
+            LocationService.instance.say("No folder selected - open app to pick one");
             return null;
         }
         return DocumentFile.fromTreeUri(context, Uri.parse(uriString));
@@ -88,13 +88,6 @@ public class WebAppInterface {
         if (LocationService.instance != null) {
             LocationService.instance.mark(json);
         }
-    }
-
-    @JavascriptInterface
-    public void stopLogging() {
-        Intent i = new Intent(context, LocationService.class);
-        i.setAction(LocationService.ACTION_STOP);
-        context.startService(i);
     }
 
     private File resolveTreeUriToFile() {

@@ -334,7 +334,7 @@
                 panel.innerHTML = "";
 
                 //absolutely not alphabetical, absolutely not lowercase only
-                //sounds.sort(); // keep alphabetical  --> NO
+                //sounds.sort(); // keep alphabetical ===> NO
 
                 sounds.forEach((s) => {
                     let b = document.createElement("button");
@@ -473,12 +473,12 @@
                 gctx.clearRect(0, 0, graph.width, graph.height);
                 if (slice.length < 2) return;
 
-                // get display range -- overrides take priority, then auto, then Kilauea defaults
+                // get display range - overrides take priority, then auto, then Kilauea defaults
                 let range = getDisplayRange();
                 let rawMin = range.min !== null ? range.min : 3000;
                 let rawMax = range.max !== null ? range.max : 4500;
 
-                // quantize to 500ft buckets -- only ever expand, never shrink
+                // quantize to 500ft buckets - only ever expand, never shrink
                 let min = Math.floor(rawMin / 500) * 500;
                 let max = Math.ceil(rawMax / 500) * 500;
                 if (max === min) max += 500;
@@ -623,7 +623,7 @@
                 d.lon = fmtLatLon(d.lon);
                 d.alt = Math.round(d.alt * 10) / 10;
                 d.acc = Math.round(d.acc * 10) / 10;
-                updateAltRange(d.alt); // <-- add this line for min/max calcs
+                updateAltRange(d.alt); // < - - add this line for min/max calcs
                 points.push(d);
                 let vent = distToNorthVent(d.lat, d.lon);
                 d.ventDist = vent.log;
