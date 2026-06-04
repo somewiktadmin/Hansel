@@ -1,8 +1,35 @@
 <!doctype html>
+<!--
+    Hansel GPS breadcrumb logger - v0.98
+    index.html - WebView UI, the only thing the user ever sees.
+
+    This file runs inside an Android WebView (MainActivity.java).
+    All GPS data, file I/O, and system calls go through AndroidBridge,
+    which is the JavaScript interface name for WebAppInterface.java.
+
+    Architecture: Java owns location, files, and permissions.
+    JavaScript owns display, user input, and the say() scrollbox.
+    The two sides talk exclusively through AndroidBridge calls (JS to Java)
+    and onGPSUpdate() calls (Java to JS via evaluateJavascript()).
+
+    Timezone: HST always.  The device is set to HST.  toHST() is not
+    a timezone conversion - it is a datetime formatter that produces
+    yyyy-MM-dd_HH-mm-ss strings from the device clock, which is HST.
+    Never UTC.  Never assume UTC.  Never convert to UTC.  HST.
+
+    map.png is a static background image of the Kilauea summit area,
+    bundled as an Android asset alongside this file.  It is 2019-era.
+    OSM tile-based map is a future replacement.
+
+    Sound buttons: case is significant.  "chuff", "CHUFF", and "Chuff"
+    are three distinct acoustic observations.  Do not sort, do not
+    normalize case, do not deduplicate.  The field researcher chose
+    the label deliberately.
+-->
 <html>
-    <head>
-        <meta content="width=device-width, initial-scale=1" name="viewport" />
-        <style>
+<head>
+    <meta content="width=device-width, initial-scale=1" name="viewport" />
+    <style>
             body {
                 font-family: sans-serif;
                 background: #111;
@@ -38,70 +65,86 @@
                 height: auto;
             }
         </style>
-    </head>
+</head>
 
-    <body>
-        <h2>Hansel - (field notes) v0.98</h2>
-        <h4>Hansel-app logs paths. Gretel-app listens.</h4>
+<body>
+<h2>Hansel - (field notes) v0.98</h2>
+<h4>Hansel-app logs paths. Gretel-app listens.</h4>
 
-        <button onclick="stop()">STOP</button>
-        <button onclick="AndroidBridge.consolidateNow()">Rollup</button>
+<button onclick="stop()">STOP</button>
+<button onclick="AndroidBridge.consolidateNow()">Rollup</button>
 
-        <div id="status">Idle</div>
+<div id="status">Idle</div>
 
-        <pre id="readout">Waiting...</pre>
+<pre id="readout">Waiting...</pre>
 
-        <canvas height="350" id="map" width="350"></canvas>
-        <canvas height="250" id="graph" width="350"></canvas>
-        <div id="graphScale" style="font-size: 12px; color: #888"></div>
-        <button class="sound-btn" onclick="resetToKilauea()">
-            Reset to Kilauea
-        </button>
-        <button class="sound-btn" onclick="resetTo250()">
-            Reset to +-250
-        </button>
+<canvas height="350" id="map" width="350"></canvas>
+<canvas height="250" id="graph" width="350"></canvas>
+<div id="graphScale" style="font-size: 12px; color: #888"></div>
+<button class="sound-btn" onclick="resetToKilauea()">
+    Reset to Kilauea
+</button>
+<button class="sound-btn" onclick="resetTo250()">
+    Reset to +-250
+</button>
 
-        <button onclick="mark()">MARK</button>
+<button onclick="mark()">MARK</button>
 
-        <div id="soundPanel"></div>
+<div id="soundPanel"></div>
 
-        <input
-            id="newSound"
-            placeholder="Add new sound..."
+<input
+        id="newSound"
+        placeholder="Add new sound..."
+        style="width: 90%; font-size: 16px; padding: 6px"
+/>
+<button onclick="addSound()">Add</button>
+
+<div style="margin-top: 10px">
+    <input
+            id="noteInput"
+            placeholder="Add a one-time note..."
             style="width: 90%; font-size: 16px; padding: 6px"
-        />
-        <button onclick="addSound()">Add</button>
+    />
+    <button onclick="submitNote()">Add</button>
+</div>
 
-        <div style="margin-top: 10px">
-            <input
-                id="noteInput"
-                placeholder="Add a one-time note..."
-                style="width: 90%; font-size: 16px; padding: 6px"
-            />
-            <button onclick="submitNote()">Add</button>
-        </div>
+<div id="status2">Idle</div>
 
-        <div id="status2">Idle</div>
+<textarea
+        id="logView"
+        rows="12"
+        style="width: 99%; background: #000; color: #0f0; font-size: 10px"
+></textarea>
 
-        <textarea
-            id="logView"
-            rows="12"
-            style="width: 99%; background: #000; color: #0f0; font-size: 10px"
-        ></textarea>
+<select id="replaySpeed">
+    <option value="500">0.5s</option>
+    <option value="200">0.2s</option>
+    <option value="100">0.1s</option>
+    <option value="50">50ms</option>
+    <option value="10">10ms</option>
+    <option value="1" selected>1ms</option>
+</select>
+<button onclick="replay()">Replay</button>
+<button onclick="replay72h()">72hr</button>
 
-        <select id="replaySpeed">
-            <option value="500">0.5s</option>
-            <option value="200">0.2s</option>
-            <option value="100">0.1s</option>
-            <option value="50">50ms</option>
-            <option value="10">10ms</option>
-            <option value="1" selected>1ms</option>
-        </select>
-        <button onclick="replay()">Replay</button>
-        <button onclick="replay72h()">72hr</button>
-
-        <script>
+<script>
             const HANSEL_VERSION = "0.98";
+
+            // say() is defined first, before everything else, so that any
+            // code anywhere in this file can call it safely.  During early
+            // development LOGCAT refused to work (Motorola requires enabling
+            // a logger buffer in developer options, default is OFF), so say()
+            // became the universal debug and status output for every layer of
+            // the project.  It writes to the green scrollbox at the bottom of
+            // the screen.  Java calls it via evaluateJavascript(), JavaScript
+            // calls it directly.  If you need to know something happened, say() it.
+            function say(something) {
+                document.getElementById("status2").innerText = something;
+                logLines.push(something);
+                let ta = document.getElementById("logView");
+                ta.value = logLines.join("\n");
+                ta.scrollTop = ta.scrollHeight;
+            }
 
             window.onerror = function (msg, src, line) {
                 if (line)
@@ -111,7 +154,8 @@
 
             document.getElementById("status").innerText = "JS loaded.";
 
-            // best fix we'll get until another illegal drone flies over
+            // HST coordinates of the north vent, Kilauea summit.
+            // "best fix we'll get until another illegal drone flies over"
             const NORTH_VENT_LAT = 19.402;
             const NORTH_VENT_LON = -155.29;
 
@@ -127,48 +171,93 @@
 
             let rollover = 3600;
 
-            let interval = 30000 ; //30 seconds
+            // Logging interval in milliseconds.  30000 is the only correct
+            // value - see LocationService.java interval field for the full story.
+            let interval = 30000;
 
-            function updateAltRange(alt) {
-                currentAlt = alt;
-                if (autoAltMin === null || alt < autoAltMin) autoAltMin = alt;
-                if (autoAltMax === null || alt > autoAltMax) autoAltMax = alt;
+            let logLines = [];
+            let points = [];
+            let isRunning = false;
+            let lastMarkTime = 0;
+
+            const map = document.getElementById("map");
+            const mctx = map.getContext("2d");
+            const graph = document.getElementById("graph");
+            const gctx = graph.getContext("2d");
+            const img = new Image();
+
+            // Map image bounds around the Kilauea north vent area.
+            // Adjust if map.png is ever replaced.
+            let bounds = {
+                latMin: 19.37,
+                latMax: 19.45,
+                lonMin: -155.33,
+                lonMax: -155.25,
+            };
+
+            // ================================================================
+            // main() - called once from window.addEventListener("load").
+            //
+            // The canvas sizing problem: clientWidth is zero at script parse
+            // time because the browser has not performed layout yet.  Inline
+            // script runs as the page is parsed, before layout is complete.
+            // window.addEventListener("load") fires after the entire document
+            // is parsed and laid out, so clientWidth is real by the time
+            // main() runs.  initCanvases() therefore always gets valid
+            // dimensions, and img.onload fires into a properly sized canvas.
+            // start() previously called drawMap() as a band-aid that worked
+            // roughly half the time depending on image cache state.  Gone.
+            // ================================================================
+            function main() {
+                initCanvases();
+
+                img.onload = function () {
+                    say("map.png loaded, size: " + img.width + " x " + img.height);
+                    drawMap();
+                };
+                img.onerror = function () {
+                    say("map.png FAILED TO LOAD");
+                };
+                img.src = "map.png";
+
+                loadSounds();
+                rebuildButtons();
+                saveSounds();
+
+                document
+                    .getElementById("noteInput")
+                    .addEventListener("keydown", function (e) {
+                        if (e.key === "Enter") submitNote();
+                    });
+
+                document
+                    .getElementById("newSound")
+                    .addEventListener("keydown", function (e) {
+                        if (e.key === "Enter") addSound();
+                    });
+
+                start();
             }
 
-            function overrideMin() {
-                let v = prompt(
-                    "Force min altitude (ft):",
-                    overrideAltMin ??
-                        Math.floor((autoAltMin || 3000) / 500) * 500,
-                );
-                if (v === null) return;
-                overrideAltMin = parseInt(v);
+            /**
+             * Sizes the map and graph canvases from real layout dimensions.
+             * Must be called after layout is complete (i.e. from main()).
+             * The || 350 fallback matches the HTML attribute default and
+             * prevents a zero-dimension canvas if something goes wrong.
+             */
+            function initCanvases() {
+                map.width = map.clientWidth || 350;
+                map.height = map.width;
+                graph.width = graph.clientWidth || 350;
+                say("canvas init: map=" + map.width + " graph=" + graph.width);
             }
 
-            function overrideMax() {
-                let v = prompt(
-                    "Force max altitude (ft):",
-                    overrideAltMax ??
-                        Math.ceil((autoAltMax || 4500) / 500) * 500,
-                );
-                if (v === null) return;
-                overrideAltMax = parseInt(v);
-            }
-
-            function resetToKilauea() {
-                overrideAltMin = null;
-                overrideAltMax = null;
-                autoAltMin = 3000;
-                autoAltMax = 4500;
-            }
-
-            function resetTo250() {
-                overrideAltMin = null;
-                overrideAltMax = null;
-                autoAltMin = currentAlt - 250;
-                autoAltMax = currentAlt + 250;
-            }
-
+            /**
+             * Formats a datetime from the device clock as yyyy-MM-dd_HH-mm-ss.
+             * The device is assumed to be set to HST.  This is not a timezone
+             * conversion.  The output is HST because the input is HST.
+             * Never UTC.
+             */
             function toHST() {
                 let now = new Date();
                 let Y = now.getFullYear();
@@ -180,6 +269,35 @@
                 return `${Y}-${M}-${D}_${h}-${m}-${s}`;
             }
 
+            /**
+             * Formats a lat or lon value to exactly 6 decimal places.
+             * Mirrors the Java fmtLatLon() in LocationService.
+             * See that method for the rationale on the nudge.
+             */
+            function fmtLatLon(v) {
+                let val = Math.round(parseFloat(v) * 1000000) / 1000000;
+                const decimals = val.toString().split(".")[1] || "";
+                if (decimals.length < 6) {
+                    val += 0.000001;
+                    val = Math.round(val * 1000000) / 1000000;
+                }
+                return val;
+            }
+
+            /**
+             * Updates the running altitude min/max for graph scaling.
+             * Called on every incoming point, live and replay.
+             */
+            function updateAltRange(alt) {
+                currentAlt = alt;
+                if (autoAltMin === null || alt < autoAltMin) autoAltMin = alt;
+                if (autoAltMax === null || alt > autoAltMax) autoAltMax = alt;
+            }
+
+            /**
+             * Returns the active display range for the altitude graph.
+             * Override values take priority over auto-tracked min/max.
+             */
             function getDisplayRange() {
                 return {
                     min: overrideAltMin !== null ? overrideAltMin : autoAltMin,
@@ -187,6 +305,65 @@
                 };
             }
 
+            /**
+             * Prompts the user to set a manual minimum altitude for the graph.
+             */
+            function overrideMin() {
+                let v = prompt(
+                    "Force min altitude (ft):",
+                    overrideAltMin ??
+                        Math.floor((autoAltMin || 3000) / 500) * 500,
+                );
+                if (v === null) return;
+                overrideAltMin = parseInt(v);
+            }
+
+            /**
+             * Prompts the user to set a manual maximum altitude for the graph.
+             */
+            function overrideMax() {
+                let v = prompt(
+                    "Force max altitude (ft):",
+                    overrideAltMax ??
+                        Math.ceil((autoAltMax || 4500) / 500) * 500,
+                );
+                if (v === null) return;
+                overrideAltMax = parseInt(v);
+            }
+
+            /**
+             * Resets graph scaling to Kilauea summit defaults: 3000-4500 ft.
+             * Clears any manual overrides.
+             */
+            function resetToKilauea() {
+                overrideAltMin = null;
+                overrideAltMax = null;
+                autoAltMin = 3000;
+                autoAltMax = 4500;
+            }
+
+            /**
+             * Resets graph scaling to current altitude +- 250 ft.
+             * Useful for close-in altitude detail on flat terrain.
+             * Clears any manual overrides.
+             */
+            function resetTo250() {
+                overrideAltMin = null;
+                overrideAltMax = null;
+                autoAltMin = currentAlt - 250;
+                autoAltMax = currentAlt + 250;
+            }
+
+            /**
+             * Haversine distance from current position to the Kilauea north vent.
+             * Returns both a human-readable display string and a compact log string.
+             * Below 2640ft: distance in feet and football fields.
+             * Below 100mi: distance in feet and miles.
+             * Above 100mi: distance in miles only.
+             *
+             * Earth radius is in feet (20925722) because altitude is in feet
+             * and the output is in feet and miles.  Not meters.  Not km.  Feet.
+             */
             function distToNorthVent(lat, lon) {
                 const R = 20925722; // earth radius in feet
                 const dLat = ((lat - NORTH_VENT_LAT) * Math.PI) / 180;
@@ -225,33 +402,11 @@
                 return { display, log };
             }
 
-            function submitNote() {
-                let input = document.getElementById("noteInput");
-                let val = input.value.trim();
-                if (!val) return;
-                mark(val);
-                input.value = "";
-                input.blur(); //remove keyboard
-            }
-
-            document
-                .getElementById("noteInput")
-                .addEventListener("keydown", function (e) {
-                    if (e.key === "Enter") {
-                        submitNote();
-                    }
-                });
-
-            document
-                .getElementById("newSound")
-                .addEventListener("keydown", function (e) {
-                    if (e.key === "Enter") {
-                        addSound();
-                    }
-                });
-
-            let logLines = [];
-
+            /**
+             * Strips newlines and non-ASCII characters from a note string
+             * before display.  NDJSON is one record per line - embedded
+             * newlines would break the file format.
+             */
             function sanitizeNote(s) {
                 return s
                     .replace(/[\r\n]+/g, " ")
@@ -259,14 +414,18 @@
                     .trim();
             }
 
-            // This formats stuff for display in the goofy scrollbox
+            /**
+             * Formats a trackpoint for display in the say() scrollbox.
+             * The raw NDJSON timestamp yyyy-MM-dd_HH-mm-ss is reformatted
+             * to yyyy-MM-dd HH:mm:ss for readability.
+             * vent distance display is commented out for now - line too long.
+             */
             function appendLog(d) {
                 let ts = d.t
                     .replace("_", " ")
                     .replace(/-(\d{2})-(\d{2})$/, ":$1:$2");
 
                 let note = d.note ? " note: " + sanitizeNote(d.note) : "";
-                //let line = `${ts} @ ${d.lat.toFixed(5)},${d.lon.toFixed(5)} (${d.alt}') ${d.ventDist || "?"} ${note}`;
                 let line = `${ts} @ ${d.lat.toFixed(5)},${d.lon.toFixed(5)} (${d.alt}') ${note}`;
                 logLines.push(line);
 
@@ -279,6 +438,10 @@
                 ta.scrollTop = ta.scrollHeight;
             }
 
+            // Sound vocabulary for the sound panel buttons.
+            // Case is significant - "chuff", "CHUFF", and "Chuff" are three
+            // distinct acoustic observations with different intensities.
+            // Do not sort.  Do not normalize.  The researcher chose these labels.
             let sounds = [
                 "chuff",
                 "CHUFF",
@@ -306,20 +469,27 @@
                 "tourists",
             ];
 
+            /**
+             * Adds a new sound label to the panel and persists it.
+             * The new label is appended to the end of the sounds array -
+             * not sorted, not normalized.
+             */
             function addSound() {
                 let val = document.getElementById("newSound").value.trim();
                 if (!val) return;
-
                 sounds.push(val);
                 document.getElementById("newSound").value = "";
-
                 rebuildButtons();
                 saveSounds();
             }
 
+            /**
+             * Builds the initial sound button panel.  Called once at startup
+             * before loadSounds() - replaced immediately by rebuildButtons()
+             * after sounds are loaded from localStorage.
+             */
             function buildSoundButtons() {
                 const panel = document.getElementById("soundPanel");
-
                 sounds.forEach((s) => {
                     let b = document.createElement("button");
                     b.className = "sound-btn";
@@ -329,13 +499,15 @@
                 });
             }
 
+            /**
+             * Rebuilds the sound button panel from the current sounds array.
+             * Called after addSound() or loadSounds() changes the array.
+             * Absolutely not alphabetical.  Absolutely not lowercase only.
+             * The order reflects field priority, not aesthetics.
+             */
             function rebuildButtons() {
                 const panel = document.getElementById("soundPanel");
                 panel.innerHTML = "";
-
-                //absolutely not alphabetical, absolutely not lowercase only
-                //sounds.sort(); // keep alphabetical ===> NO
-
                 sounds.forEach((s) => {
                     let b = document.createElement("button");
                     b.className = "sound-btn";
@@ -345,86 +517,65 @@
                 });
             }
 
+            /**
+             * Persists the sounds array to localStorage.
+             * localStorage works here because MainActivity sets
+             * setDomStorageEnabled(true) on the WebView.
+             * @todo Move sound persistence to AndroidBridge so it survives
+             *       a WebView data clear without losing field vocabulary.
+             */
             function saveSounds() {
                 localStorage.setItem("sounds", JSON.stringify(sounds));
             }
 
+            /**
+             * Loads the sounds array from localStorage if available.
+             * Falls back to the hardcoded default array if not.
+             */
             function loadSounds() {
                 let s = localStorage.getItem("sounds");
                 if (s) sounds = JSON.parse(s);
             }
 
-            buildSoundButtons();
-            loadSounds();
-            rebuildButtons();
-            saveSounds();
+            /**
+             * Returns a CSS color string based on GPS accuracy value.
+             * Green = good fix, red = poor fix.
+             * acc is retained as a visual indicator only - it is not a
+             * reliable data quality metric.  See LocationService acc field
+             * comments for the full warning.
+             */
+            function color(acc) {
+                if (acc < 5)  return "#00ff00";
+                if (acc < 10) return "#88ff00";
+                if (acc < 20) return "#ffff00";
+                if (acc < 50) return "#ff8800";
+                return "#ff0000";
+            }
 
-            let activeStart = null;
-            let activeLast = null;
-
-            function registerActivity() {
-                let now = Date.now();
-
-                if (!activeStart) activeStart = now;
-                if (!activeLast) activeLast = now;
-
-                let elapsed = now - activeStart;
-                let tapping = now - activeLast;
-
-                if (tapping > 30000 && elapsed < 90000) {
-                    // if they already looked away, no need to zap
-                    activeStart = null;
+            /**
+             * Draws the map canvas: static background image plus all current
+             * points as colored dots.  Called from img.onload at startup and
+             * on every incoming GPS point.
+             * The background image is map.png, a static 2019-era raster of
+             * the Kilauea summit area.  OSM tile replacement is pending.
+             */
+            function drawMap() {
+                if (img.complete) {
+                    mctx.drawImage(img, 0, 0, map.width, map.height);
                 }
-
-                if (tapping < 30000 && elapsed > 90000) {
-                    warnUser(); //constantly tapping away, forgetting the world
-                    activeStart = null; // reset after warning
+                for (let p of points) {
+                    let xy = latLonToXY(p.lat, p.lon);
+                    mctx.fillStyle = color(p.acc);
+                    mctx.beginPath();
+                    mctx.arc(xy.x, xy.y, 3, 0, Math.PI * 2);
+                    mctx.fill();
                 }
             }
 
-            function warnUser() {
-                // quick flash
-                document.body.style.background = "#400";
-
-                if (navigator.vibrate) {
-                    navigator.vibrate([100, 50, 100]);
-                }
-
-                setTimeout(() => {
-                    document.body.style.background = "#111";
-                }, 300);
-
-                // optional text cue
-                document.getElementById("status2").innerText = "LOOK UP";
-            }
-
-            document.addEventListener("touchstart", registerActivity);
-            document.addEventListener("click", registerActivity);
-
-            let points = [];
-
-            const map = document.getElementById("map");
-            const mctx = map.getContext("2d");
-
-            map.width = map.clientWidth;
-            map.height = map.width;
-
-            const graph = document.getElementById("graph");
-            const gctx = graph.getContext("2d");
-
-            graph.width = graph.clientWidth;
-
-            const img = new Image();
-            img.src = "map.png"; //  static 2019-style image
-
-            // Example bounds around north vent (adjust to image!)
-            let bounds = {
-                latMin: 19.37,
-                latMax: 19.45,
-                lonMin: -155.33,
-                lonMax: -155.25,
-            };
-
+            /**
+             * Projects a lat/lon coordinate onto the map canvas pixel space
+             * using the bounds rectangle defined above.
+             */
             function latLonToXY(lat, lon) {
                 let x =
                     ((lon - bounds.lonMin) / (bounds.lonMax - bounds.lonMin)) *
@@ -435,45 +586,23 @@
                 return { x, y };
             }
 
-            function say(something) {
-                document.getElementById("status2").innerText = something;
-                //appendLog(something);
-                logLines.push(something); // raw line, no formatting
-                let ta = document.getElementById("logView");
-                ta.value = logLines.join("\n");
-                ta.scrollTop = ta.scrollHeight;
-            }
-
-            function color(acc) {
-                if (acc < 5) return "#00ff00";
-                if (acc < 10) return "#88ff00";
-                if (acc < 20) return "#ffff00";
-                if (acc < 50) return "#ff8800";
-                return "#ff0000";
-            }
-
-            function drawMap() {
-                if (img.complete) {
-                    mctx.drawImage(img, 0, 0, map.width, map.height);
-                }
-
-                for (let p of points) {
-                    let xy = latLonToXY(p.lat, p.lon);
-                    mctx.fillStyle = color(p.acc);
-                    mctx.beginPath();
-                    mctx.arc(xy.x, xy.y, 3, 0, Math.PI * 2);
-                    mctx.fill();
-                }
-            }
-
-            // 2026-05-07 including the never-shrink rules
+            /**
+             * Draws the altitude graph for the last 100 points.
+             * Scale is quantized to 500ft buckets and only ever expands,
+             * never shrinks - a sudden altitude spike does not compress the
+             * whole history.  Notes appear as gold dots on the graph line.
+             * The graphScale div below the graph shows current scale and
+             * distance to north vent.
+             *
+             * 2026-05-07: never-shrink rules added.
+             */
             function drawGraph() {
                 let slice = points.slice(-100);
 
                 gctx.clearRect(0, 0, graph.width, graph.height);
                 if (slice.length < 2) return;
 
-                // get display range - overrides take priority, then auto, then Kilauea defaults
+                // override values take priority, then auto, then Kilauea defaults
                 let range = getDisplayRange();
                 let rawMin = range.min !== null ? range.min : 3000;
                 let rawMax = range.max !== null ? range.max : 4500;
@@ -484,30 +613,19 @@
                 if (max === min) max += 500;
 
                 console.log(
-                    "range",
-                    range,
-                    "rawMin",
-                    rawMin,
-                    "rawMax",
-                    rawMax,
-                    "min",
-                    min,
-                    "max",
-                    max,
+                    "range", range,
+                    "rawMin", rawMin,
+                    "rawMax", rawMax,
+                    "min", min,
+                    "max", max,
                 );
 
-                // update graphScale div
                 let lastPt = points[points.length - 1];
                 let ventStr = lastPt
                     ? distToNorthVent(lastPt.lat, lastPt.lon).display
                     : " ";
                 document.getElementById("graphScale").innerText =
-                    "scale: " +
-                    min +
-                    " to " +
-                    max +
-                    " ft    |    north vent: " +
-                    ventStr;
+                    "scale: " + min + " to " + max + " ft    |    north vent: " + ventStr;
                 document.getElementById("graphScale").style.textAlign = "left";
 
                 gctx.fillStyle = "#888";
@@ -556,6 +674,12 @@
                 gctx.strokeRect(0, 0, graph.width, graph.height);
             }
 
+            /**
+             * Updates the readout pre element with the latest GPS fix values.
+             * If the point has a note field, displays it in status2.
+             * Timestamp is reformatted from yyyy-MM-dd_HH-mm-ss to
+             * yyyy-MM-dd HH:mm:ss for readability.
+             */
             function updateUI(d) {
                 let lat = fmtLatLon(d.lat);
                 let lon = fmtLatLon(d.lon);
@@ -565,7 +689,6 @@
                 let crs = Math.round(d.crs);
 
                 if (d.note) {
-                    //alert("MARK received");
                     document.getElementById("status2").innerText = d.note;
                 }
 
@@ -577,43 +700,87 @@
                     `Lat,Lon: ${lat}, ${lon} \n Alt: ${alt} Acc: ${acc} MPH: ${spd} Crs: ${crs} \n ${ft} Pts: ${points.length}`;
             }
 
-            function fmtLatLon(v) {
-                let val = Math.round(parseFloat(v) * 1000000) / 1000000;
-                const decimals = val.toString().split(".")[1] || "";
-                if (decimals.length < 6) {
-                    val += 0.000001;
-                    val = Math.round(val * 1000000) / 1000000;
+            /**
+             * Submits a free-text note from the noteInput field as a mark.
+             * Clears the input and dismisses the keyboard after submission.
+             * Enter key also triggers this via the keydown listener in main().
+             */
+            function submitNote() {
+                let input = document.getElementById("noteInput");
+                let val = input.value.trim();
+                if (!val) return;
+                mark(val);
+                input.value = "";
+                input.blur();
+            }
+
+            /**
+             * Writes a mark to the log via AndroidBridge.mark().
+             * Default note is "M" - the one-tap panic button for when typing
+             * is not an option.  Sound button taps and free-text notes both
+             * call this function with their respective strings.
+             *
+             * A 5-second soft debounce prevents accidental double-marks.
+             * The mark JSON is constructed here on the JS side from the most
+             * recent point in the points array, with a fresh HST timestamp.
+             * AndroidBridge.mark() writes it verbatim and resets the deadband.
+             *
+             * mark() serves triple duty: free-text notes, sound event markers,
+             * and the M panic button.  The note field distinguishes them but
+             * this function does not care - it sends whatever string it receives.
+             */
+            function mark(note = "M") {
+                let now = Date.now();
+
+                document.getElementById("status2").innerText = "MARK pressed";
+
+                if (now - lastMarkTime < 5000) {
+                    return; // soft debounce: 5 seconds between marks
                 }
-                return val;
+
+                lastMarkTime = now;
+
+                if (typeof AndroidBridge !== "undefined") {
+                    let d = points[points.length - 1];
+                    if (!d) return;
+
+                    let ft = toHST();
+
+                    let obj = {
+                        t: ft,
+                        lat: fmtLatLon(d.lat),
+                        lon: fmtLatLon(d.lon),
+                        alt: Math.round(d.alt * 10) / 10,
+                        acc: Math.round(d.acc),
+                        spd: Math.round(d.spd),
+                        crs: Math.round(d.crs),
+                        note: note,
+                    };
+
+                    AndroidBridge.mark(JSON.stringify(obj));
+                }
             }
 
-            // same as onGPSUpdate() without filing the data again
-            function replayPoint(data) {
-                let d = JSON.parse(data);
-                if (!d.t) return;
-                d.lat = fmtLatLon(d.lat);
-                d.lon = fmtLatLon(d.lon);
-                d.alt = Math.round(d.alt * 10) / 10;
-                d.acc = Math.round(d.acc * 10) / 10;
-                updateAltRange(d.alt);
-                points.push(d);
-                let vent = distToNorthVent(d.lat, d.lon);
-                d.ventDist = vent.log;
-                //appendLog(d);
-                if (points.length > 1500) points.shift();
-                updateUI(d);
-                drawMap();
-                drawGraph();
-            }
-
+            /**
+             * Receives a GPS fix from LocationService via evaluateJavascript().
+             * Ignored during replay.  Parses the JSON, formats coordinates,
+             * updates the points array (1500 point cap), updates the UI,
+             * and redraws the map and graph.
+             *
+             * Non-trackpoint lines (no "t" field) - such as say() messages
+             * forwarded from Java - are pushed to logLines raw without formatting.
+             *
+             * The raw JSON passed in is considerably reformatted before display.
+             * The log file and the scrollbox tell different stories from the
+             * same data.
+             */
             function onGPSUpdate(data) {
-                //document.getElementById("status2").innerText = "GPS update received";
                 if (isReplaying) return;
                 if (!isRunning) return;
 
                 let d = JSON.parse(data);
                 if (!d.t) {
-                    logLines.push(data); // raw line, no formatting
+                    logLines.push(data);
                     let ta = document.getElementById("logView");
                     ta.value = logLines.join("\n");
                     ta.scrollTop = ta.scrollHeight;
@@ -623,7 +790,7 @@
                 d.lon = fmtLatLon(d.lon);
                 d.alt = Math.round(d.alt * 10) / 10;
                 d.acc = Math.round(d.acc * 10) / 10;
-                updateAltRange(d.alt); // < - - add this line for min/max calcs
+                updateAltRange(d.alt);
                 points.push(d);
                 let vent = distToNorthVent(d.lat, d.lon);
                 d.ventDist = vent.log;
@@ -637,16 +804,27 @@
                 drawGraph();
             }
 
-            let isRunning = false;
-
+            /**
+             * Starts the logging session.  Calls AndroidBridge.startLogging()
+             * with the current interval and rollover values.  Guards against
+             * double-start with the isRunning flag.
+             *
+             * AndroidBridge availability is checked explicitly - if the bridge
+             * is missing (desktop browser testing, broken WebView setup) the
+             * failure is visible in the scrollbox rather than a silent hang.
+             *
+             * @todo startLogging() is how the JS side starts LocationService.
+             *       Once BootReceiver is implemented, the service will already
+             *       be running on most starts and this call becomes a no-op
+             *       due to the double-start guard in LocationService.
+             */
             function start() {
                 say("START pressed");
-                drawMap(); //fscking thing isn't displaying - local asset file is NOT downloading wtf
                 if (isRunning) return;
                 isRunning = true;
 
                 let lvW = document.getElementById("logView").offsetWidth;
-                say( "logView.Width = " + lvW );
+                say("logView.Width = " + lvW);
 
                 if (typeof AndroidBridge === "undefined") {
                     say("No bridge!");
@@ -659,70 +837,126 @@
                 }
 
                 say("Javascript calling bridge.startLogging");
-                AndroidBridge.startLogging(
-                    interval,
-                    rollover );
-
-                //AndroidBridge.setInterval(interval);
-
+                AndroidBridge.startLogging(interval, rollover);
                 say("startLogging called");
                 document.getElementById("status").innerText = "Running";
-
             }
 
+            /**
+             * STOP button handler.  During replay, stops the replay.
+             * During normal operation, calls AndroidBridge.rotateFile()
+             * to roll over to a new log file.  Does not stop logging -
+             * there is no stop.  The only way to stop logging is to
+             * force-close the app.
+             *
+             * The button label says STOP.  It has not stopped anything
+             * since the earliest versions.  It is a file rotation trigger
+             * with a misleading name.  Renaming it is deferred.
+             *
+             * @todo Rename the STOP button to ROLL or similar.
+             */
             function stop() {
                 if (isReplaying) {
                     clearInterval(replayInterval);
                     replayInterval = null;
                     isReplaying = false;
-                    document.getElementById("status").innerText =
-                        "Replay stopped";
+                    document.getElementById("status").innerText = "Replay stopped";
                     return;
                 } else {
                     if (typeof AndroidBridge !== "undefined") {
                         let newFile = AndroidBridge.rotateFile();
-                        say( "New file: " + newFile );
+                        say("New file: " + newFile);
                         document.getElementById("status").innerText = "Running";
                     }
-
                 }
             }
 
-            let lastMarkTime = 0;
-
-            function mark(note = "M") {
-                let now = Date.now(); // Unix timestamp 1777777777
-
-                document.getElementById("status2").innerText = "MARK pressed";
-
-                if (now - lastMarkTime < 5000) {
-                    return; // soft limit of 5 seconds between each button
-                }
-
-                lastMarkTime = now;
-
-                if (typeof AndroidBridge !== "undefined") {
-                    let d = points[points.length - 1];
-                    if (!d) return;
-
-                    let ft = toHST(); // string formatted time
-
-                    let obj = {
-                        t: ft,
-                        lat: fmtLatLon(d.lat),
-                        lon: fmtLatLon(d.lon),
-                        alt: Math.round(d.alt * 10) / 10,
-                        acc: Math.round(d.acc),
-                        spd: Math.round(d.spd),
-                        crs: Math.round(d.crs),
-                        note: note,
-                    };
-
-                    //onGPSUpdate(JSON.stringify(obj));
-                    AndroidBridge.mark(JSON.stringify(obj));
-                }
+            /**
+             * Replays a single NDJSON line into the points array and UI.
+             * Identical to the live path in onGPSUpdate() except it does
+             * not call appendLog() - replay does not add to the scrollbox
+             * history.  Headers and malformed lines are silently skipped
+             * (no "t" field check).
+             */
+            function replayPoint(data) {
+                let d = JSON.parse(data);
+                if (!d.t) return;
+                d.lat = fmtLatLon(d.lat);
+                d.lon = fmtLatLon(d.lon);
+                d.alt = Math.round(d.alt * 10) / 10;
+                d.acc = Math.round(d.acc * 10) / 10;
+                updateAltRange(d.alt);
+                points.push(d);
+                let vent = distToNorthVent(d.lat, d.lon);
+                d.ventDist = vent.log;
+                if (points.length > 1500) points.shift();
+                updateUI(d);
+                drawMap();
+                drawGraph();
             }
 
+            /**
+             * Replays all files currently in the working directory.
+             * Reads every file via AndroidBridge.getFileList() and
+             * AndroidBridge.readFile(), concatenates all lines, and
+             * plays them back at the selected speed.
+             *
+             * No cutoff filter - replays everything getFileList() returns.
+             * For a 72-hour window use replay72h() instead.
+             *
+             * @todo getFileList() currently returns all files including
+             *       monthly rollup files.  Replay of a monthly file works
+             *       but can be very slow at 1ms intervals.
+             */
+            function replay() {
+                let fileList = JSON.parse(AndroidBridge.getFileList());
+
+                document.getElementById("status").scrollIntoView();
+                if (!fileList.length) {
+                    say("No files found");
+                    return;
+                }
+
+                isReplaying = true;
+
+                let speed = parseInt(document.getElementById("replaySpeed").value);
+                let allLines = [];
+
+                for (let path of fileList) {
+                    say("Reading " + path);
+                    let contents = AndroidBridge.readFile(path);
+                    let lines = contents.split("\n").filter((l) => l.trim());
+                    allLines = allLines.concat(lines);
+                }
+
+                let i = 0;
+                replayInterval = setInterval(() => {
+                    if (i >= allLines.length) {
+                        clearInterval(replayInterval);
+                        isReplaying = false;
+                        say("Replay done");
+                        return;
+                    }
+                    try {
+                        replayPoint(allLines[i]);
+                    } catch (e) {
+                        say("replay err line " + i + ": " + e.message);
+                    }
+                    i++;
+                }, speed);
+            }
+
+            /**
+             * Replays only files from the last 72 hours.
+             * Monthly rollup files (day field = 00) are excluded.
+             * The 72-hour cutoff is computed as a yyyy-MM-dd_HH-mm-ss
+             * string for direct lexicographic comparison against filenames.
+             * This works because the filename format sorts chronologically.
+             *
+             * 72 hours matches the consolidateOldFiles() retention window -
+             * files older than 72 hours may already be consumed into the
+             * monthly rollup and unavailable here.
+             */
             function replay72h() {
                 let fileList = JSON.parse(AndroidBridge.getFileList());
 
@@ -746,7 +980,7 @@
                 // skip monthly rollup files (day = 00) and anything older than cutoff
                 let recent = fileList.filter(path => {
                     let name = path.substring(path.lastIndexOf("/") + 1);
-                    if (name.match(/^\d{4}-\d{2}-00_/)) return false; // monthly rollup
+                    if (name.match(/^\d{4}-\d{2}-00_/)) return false;
                     return name >= cutoffStr;
                 });
 
@@ -784,50 +1018,10 @@
                 }, speed);
             }
 
-            function replay() {
-                let fileList = JSON.parse(AndroidBridge.getFileList());
-
-                document.getElementById("status").scrollIntoView();
-                if (!fileList.length) {
-                    say("No files found");
-                    return;
-                }
-
-                isReplaying = true;
-
-                let speed = parseInt(
-                    document.getElementById("replaySpeed").value,
-                );
-                let allLines = [];
-
-                for (let path of fileList) {
-                    say("Reading " + path);
-                    let contents = AndroidBridge.readFile(path);
-                    let lines = contents.split("\n").filter((l) => l.trim());
-                    allLines = allLines.concat(lines);
-                }
-
-                //say("Replaying " + allLines.length + " points");
-
-                let i = 0;
-                replayInterval = setInterval(() => {
-                    if (i >= allLines.length) {
-                        clearInterval(replayInterval);
-                        isReplaying = false;
-                        say("Replay done");
-                        return;
-                    }
-                    try {
-                        replayPoint(allLines[i]);
-                    } catch (e) {
-                        say("replay err line " + i + ": " + e.message);
-                    }
-                    i++;
-                }, speed);
-            }
-
-            start();
+            // Entry point.  Everything that touches the DOM or depends on
+            // layout runs from here, after the browser guarantees layout is complete.
+            window.addEventListener("load", main);
 
         </script>
-    </body>
+</body>
 </html>
