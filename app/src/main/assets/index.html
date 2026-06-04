@@ -561,6 +561,8 @@
                 let lon = fmtLatLon(d.lon);
                 let alt = Math.round(d.alt * 10) / 10;
                 let acc = Math.round(d.acc);
+                let spd = Math.round(d.spd);
+                let crs = Math.round(d.crs);
 
                 if (d.note) {
                     //alert("MARK received");
@@ -572,7 +574,7 @@
                     .replace(/-(\d{2})-(\d{2})$/, ":$1:$2");
 
                 document.getElementById("readout").innerText =
-                    `Lat,Lon: ${lat}, ${lon} \n Alt: ${alt} Acc: ${acc} \n ${ft} Pts: ${points.length}`;
+                    `Lat,Lon: ${lat}, ${lon} \n Alt: ${alt} Acc: ${acc} MPH: ${spd} Crs: ${crs} \n ${ft} Pts: ${points.length}`;
             }
 
             function fmtLatLon(v) {
@@ -625,11 +627,8 @@
                 points.push(d);
                 let vent = distToNorthVent(d.lat, d.lon);
                 d.ventDist = vent.log;
-                appendLog(d);
 
-                if (d.note) {
-                    console.log("MARK received in UI", d);
-                }
+                appendLog(d);
 
                 if (points.length > 1500) points.shift();
 
@@ -680,12 +679,12 @@
                         "Replay stopped";
                     return;
                 } else {
-                    isRunning = false;
                     if (typeof AndroidBridge !== "undefined") {
-                        AndroidBridge.stopLogging();
-                        document.getElementById("status").innerText = "Stopped";
+                        let newFile = AndroidBridge.rotateFile();
+                        say( "New file: " + newFile );
+                        document.getElementById("status").innerText = "Running";
                     }
-                    start();
+
                 }
             }
 
@@ -714,6 +713,8 @@
                         lon: fmtLatLon(d.lon),
                         alt: Math.round(d.alt * 10) / 10,
                         acc: Math.round(d.acc),
+                        spd: Math.round(d.spd),
+                        crs: Math.round(d.crs),
                         note: note,
                     };
 

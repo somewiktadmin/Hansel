@@ -132,7 +132,7 @@ public class MainActivity extends Activity {
 
             webView.loadUrl("file:///android_asset/index.html");
 
-            startLoggingDefault();
+            //startLoggingDefault();
 
         }
     }

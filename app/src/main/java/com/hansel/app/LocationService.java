@@ -115,6 +115,11 @@ public class LocationService extends Service {
         }
     }
 
+    public String rotateNow() {
+        stopAndReport();
+        openFile();
+        return currentFile != null ? currentFile.getName() : "unknown";
+    }
 
     // === get SAF tree from SharedPreferences ===
     private DocumentFile getTreeDir() {
@@ -356,6 +361,8 @@ public class LocationService extends Service {
             isFileOpen = true;
             writer.write("{\"hansel\":\"0.93\",\"tz\":\"HST\",\"source\":\"openFile()\"}\n");
 
+            currentHourKey = getHourKey( System.currentTimeMillis() );
+
             say("Logging to: " + currentFile.getUri().toString());
             //Toast.makeText(this, "Logging to: " + currentFile.getUri().toString(), Toast.LENGTH_LONG).show();
             say("Logging to: " + name);
@@ -443,6 +450,7 @@ public class LocationService extends Service {
             if (writer != null) {
                 writer.write(obj.toString());
                 writer.newLine();
+                writer.flush();
             }
 
         } catch (Exception e) {
@@ -490,6 +498,8 @@ public class LocationService extends Service {
             }
 
             isFileOpen = false;
+
+            say("stop: currentFile=" + (currentFile == null ? "NULL" : currentFile.getUri().toString()));
 
             String msg = "Saved: " + currentHourKey +
                     "\nFile: " + (currentFile != null ? currentFile.getName() : "none") +

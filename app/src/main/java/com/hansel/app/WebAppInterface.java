@@ -62,7 +62,7 @@ public class WebAppInterface {
     public void startLogging(String interval, String rollover) {
         //Prevent doubletap
         if (LocationService.instance != null) {
-            LocationService.instance.say("startLogging: service already running, skipping");
+            //LocationService.instance.say("startLogging: service already running, skipping");
             return;
         }
         Intent i = new Intent(context, LocationService.class);
@@ -73,6 +73,14 @@ public class WebAppInterface {
                 .edit()
                 .putInt("last_interval", Integer.parseInt(interval))
                 .apply();
+    }
+
+    @JavascriptInterface
+    public String rotateFile() {
+        if (LocationService.instance != null) {
+            return LocationService.instance.rotateNow();
+        }
+        return "no service";
     }
 
     @JavascriptInterface
