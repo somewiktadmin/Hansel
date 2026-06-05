@@ -1,4 +1,4 @@
-// Hansel - GPS breadcrumb logger v0.98
+// Hansel - GPS breadcrumb logger v0.985
 // Copyright (C) 2026 GrimmsTales
 // GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -39,7 +39,7 @@ import java.util.Calendar;
 import java.util.Date;
 
 /**
- * Hansel GPS breadcrumb logger - v0.98.
+ * Hansel GPS breadcrumb logger - v0.985.
  * File format: NDJSON v0.931.
  *
  * <p>LocationService is the heart of Hansel.  It runs as an Android foreground

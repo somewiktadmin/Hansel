@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-    Hansel GPS breadcrumb logger - v0.98
+    Hansel GPS breadcrumb logger - v0.985
     index.html - WebView UI, the only thing the user ever sees.
 
     This file runs inside an Android WebView (MainActivity.java).
@@ -68,19 +68,19 @@
 </head>
 
 <body>
-<h2>Hansel - (field notes) v0.98</h2>
-<h4>Hansel-app logs paths. Gretel-app listens.</h4>
-
-<button onclick="stop()">STOP</button>
-<button onclick="AndroidBridge.consolidateNow()">Rollup</button>
+<h2 title="Hansel-app logs paths. Gretel-app listens.">Hansel - notes v0.985</h2>
 
 <div id="status">Idle</div>
 
 <pre id="readout">Waiting...</pre>
 
-<canvas height="350" id="map" width="350"></canvas>
 <canvas height="250" id="graph" width="350"></canvas>
 <div id="graphScale" style="font-size: 12px; color: #888"></div>
+<canvas height="350" id="map" width="350"></canvas>
+
+<button onclick="stop()">STOP</button>
+<button onclick="AndroidBridge.consolidateNow()">Rollup</button>
+
 <button class="sound-btn" onclick="resetToKilauea()">
     Reset to Kilauea
 </button>
@@ -128,7 +128,7 @@
 <button onclick="replay72h()">72hr</button>
 
 <script>
-            const HANSEL_VERSION = "0.98";
+            const HANSEL_VERSION = "0.985";
 
             // say() is defined first, before everything else, so that any
             // code anywhere in this file can call it safely.  During early

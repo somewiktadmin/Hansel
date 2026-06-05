@@ -11,21 +11,33 @@
 # (c) OpenStreetMap contributors - tiles fetched from
 # tile.openstreetmap.org per OSM tile usage policy.
 
-import math, os, time, urllib.request
+import math
+import os
+import time
+import urllib.request
 
-USER_AGENT = "Hansel/0.98 personal field logger - single user, Kilauea HI"
-ZOOM_LEVELS = [14, 15, 16]
-GRID = 5        # 5x5 = 25 tiles per zoom level
+USER_AGENT = "Hansel/0.985 personal field logger - single user, Kilauea HI"
+ZOOM_LEVELS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+GRID = 5  # 5x5 = 25 tiles per zoom level
 CENTER_LAT = 19.402
 CENTER_LON = -155.29
-DELAY = 1.0     # seconds between requests - be polite
+DELAY = 1.0  # seconds between requests - be polite
+
 
 def lat_lon_to_tile(lat, lon, zoom):
-    n = 2 ** zoom
+    n = 2**zoom
     x = int((lon + 180.0) / 360.0 * n)
-    y = int((1.0 - math.log(math.tan(math.radians(lat)) +
-             1.0 / math.cos(math.radians(lat))) / math.pi) / 2.0 * n)
+    y = int(
+        (
+            1.0
+            - math.log(math.tan(math.radians(lat)) + 1.0 / math.cos(math.radians(lat)))
+            / math.pi
+        )
+        / 2.0
+        * n
+    )
     return x, y
+
 
 def fetch_tile(z, x, y):
     path = os.path.join("tiles", str(z), str(x), str(y) + ".png")
@@ -44,6 +56,7 @@ def fetch_tile(z, x, y):
         print(f"  FAILED {z}/{x}/{y}: {e}")
     time.sleep(DELAY)
 
+
 def main():
     print(f"Fetching {GRID}x{GRID} tile grid at zoom levels {ZOOM_LEVELS}")
     print(f"Center: {CENTER_LAT}, {CENTER_LON}")
@@ -61,6 +74,7 @@ def main():
 
     print(f"\nDone.  {total} tiles attempted.")
     print("Drop the tiles/ folder into app/src/main/assets/")
+
 
 if __name__ == "__main__":
     main()

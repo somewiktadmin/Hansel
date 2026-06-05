@@ -3,7 +3,7 @@
 Hansel is a GPS breadcrumb logger for field research at Kilauea volcano,
 Big Island, Hawaii.  HST timezone throughout.  Always.
 
-## v0.98 - current
+## v0.985 - current
 - Javadoc pass: MainActivity, LocationService, WebAppInterface,
   NotificationHelper, AndroidManifest, build.gradle, index.html
 - scheduleTopOfHourRotation() - clock-driven hourly file rotation,

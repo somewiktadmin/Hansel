@@ -1,5 +1,5 @@
 /*
- * Hansel - GPS breadcrumb logger
+ * Hansel - GPS breadcrumb logger v0.985
  * Copyright (C) 2026 GrimmsTales
  * GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
  */
@@ -19,12 +19,13 @@ import android.provider.Settings;
 import android.view.Window;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
-import android.widget.Toast;
 
 import androidx.core.content.ContextCompat;
 
+import org.osmdroid.views.overlay.TilesOverlay;
+
 /**
- * Hansel GPS breadcrumb logger - v0.98.
+ * Hansel GPS breadcrumb logger - v0.985.
  * File format: NDJSON v0.93 (v0.931 pending).
  *
  * <p>MainActivity is the single Activity for the Hansel app.  It owns the
@@ -69,6 +70,7 @@ import androidx.core.content.ContextCompat;
 public class MainActivity extends Activity {
 
     public static WebView webView;
+    public static org.osmdroid.views.MapView mapView;
 
     // 2026-05-10  for Hansel-v0.97 yay
     // At Hansel v1 and 0.94, start using the number 1094
@@ -129,8 +131,18 @@ public class MainActivity extends Activity {
             }
         }
 
-        webView = new WebView(this);
-        setContentView(webView);
+        setContentView(R.layout.activity_main);
+        webView = findViewById(R.id.webView);
+        mapView  = findViewById(R.id.mapView);
+
+        org.osmdroid.config.Configuration.getInstance()
+                .setUserAgentValue("Hansel/0.985 personal field logger - single user, Kilauea HI");
+        mapView.setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK);
+        mapView.getController().setZoom(15.0);
+        mapView.getController().setCenter(
+                new org.osmdroid.util.GeoPoint(19.402, -155.29));
+        mapView.getOverlayManager().getTilesOverlay()
+                .setColorFilter(TilesOverlay.INVERT_COLORS);
 
         WebView.setWebContentsDebuggingEnabled(true);
 
@@ -170,6 +182,7 @@ public class MainActivity extends Activity {
             webView.loadUrl("file:///android_asset/index.html");
             startLoggingDefault();
         }
+
     }
 
     /**
