@@ -864,7 +864,7 @@
                     return;
                 } else {
                     if (typeof AndroidBridge !== "undefined") {
-                        let newFile = AndroidBridge.rotateFile();
+                        let newFile = AndroidBridge.rotateNow();
                         say("New file: " + newFile);
                         document.getElementById("status").innerText = "Running";
                     }

@@ -1,4 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Hansel - GPS breadcrumb logger - v0.98
+    Copyright (C) 2026 GrimmsTales
+    GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
+
+    Permissions notes:
+
+    READ_EXTERNAL_STORAGE: redundant on SDK 30+ where MANAGE_EXTERNAL_STORAGE
+    supersedes it.  Retained for minSdk 21 compatibility.
+
+    MANAGE_EXTERNAL_STORAGE: required on SDK 30+ for direct File access
+    bypassing SAF.  This is the permission that makes getFileList() and
+    readFile() work without DocumentFile gymnastics.  Google Play requires
+    justification for this permission - it will need a declaration in the
+    Play Console before any store submission.
+
+    ACCESS_BACKGROUND_LOCATION: required on SDK 29+ for location updates
+    while the app is not in the foreground.  Also requires Play Console
+    justification for store submission.
+
+    FOREGROUND_SERVICE_LOCATION: required on SDK 34+ in addition to
+    FOREGROUND_SERVICE.  Both are needed or the system will not deliver
+    location updates to a foreground service.
+
+    foregroundServiceType="location" on the LocationService declaration
+    is the manifest companion to the FOREGROUND_SERVICE_LOCATION permission.
+    Both must be present - neither alone is sufficient on SDK 34+.
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hansel.app">
 

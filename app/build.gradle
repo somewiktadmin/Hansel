@@ -1,3 +1,22 @@
+// Hansel - GPS breadcrumb logger
+// Copyright (C) 2026 GrimmsTales
+// GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
+//
+// build.gradle - app module
+//
+// minSdk 21: covers Android 5.0 Lollipop and up.  The TCL museum piece
+// runs somewhere in this range.  Do not raise without testing on the
+// oldest device in the field kit.
+//
+// targetSdk / compileSdk 34: required for Play Store submissions as of
+// 2024.  Drives several of the permission requirements in AndroidManifest -
+// FOREGROUND_SERVICE_LOCATION and the MANAGE_ALL_FILES runtime request
+// are both SDK 34 consequences.
+//
+// versionCode must be a plain integer - Android uses it for update ordering.
+// versionName is the human-readable label shown in the Play Store and in
+// About screens.  Keep them in sync manually.
+
 plugins {
     id 'com.android.application'
 }
@@ -9,9 +28,12 @@ android {
         applicationId "com.hansel.app"
         minSdk 21
         targetSdk 34
-        versionCode 16 //must be integer
+        versionCode 17 //must be integer
         versionName "v0.98" // For Hansel-v0.98 Note: VERSIONCODE must be an integer  (84GB later...) 5/11/2026
 
+        // TODO: migrate to androidx.test.runner.AndroidJUnitRunner -
+        // android.support.test.runner is the old support library and is
+        // no longer maintained.
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
 
@@ -33,10 +55,6 @@ dependencies {
     implementation 'com.google.android.gms:play-services-location:21.0.1'
     implementation 'androidx.core:core:1.6.0'
     implementation 'androidx.documentfile:documentfile:1.0.1'
-    //implementation 'com.android.support:appcompat-v7:28.0.0'
-    //implementation 'com.android.support.constraint:constraint-layout:2.0.4'
     testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'com.android.support.test:runner:1.0.2'
-    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
 
 }
