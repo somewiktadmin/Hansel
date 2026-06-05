@@ -8,6 +8,7 @@ package com.hansel.app;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -17,6 +18,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
+import android.util.DisplayMetrics;
 import android.view.Window;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -25,7 +27,12 @@ import androidx.core.content.ContextCompat;
 
 import org.osmdroid.api.IMapController;
 import org.osmdroid.util.GeoPoint;
+import org.osmdroid.views.overlay.ScaleBarOverlay;
 import org.osmdroid.views.overlay.TilesOverlay;
+import org.osmdroid.views.overlay.compass.CompassOverlay;
+import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider;
+import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider;
+import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 
 /**
  * Hansel GPS breadcrumb logger - v0.985.
@@ -81,6 +88,9 @@ public class MainActivity extends Activity {
 
     static final String PREFS_NAME   = "HanselPrefs";
     static final String PREF_TREE_URI = "tree_uri";
+    private MyLocationNewOverlay locationOverlay;
+    private CompassOverlay compassOverlay;
+    private ScaleBarOverlay scaleBarOverlay;
 
     /**
      * Initializes the activity, requests permissions, builds the WebView, and
@@ -157,6 +167,14 @@ public class MainActivity extends Activity {
         mapController.setZoom(9.5);
         org.osmdroid.util.GeoPoint startPoint = new GeoPoint(19.402, -155.293);
         mapController.setCenter(startPoint);
+
+        locationOverlay = new MyLocationNewOverlay(new GpsMyLocationProvider(this),mapView);
+        locationOverlay.enableMyLocation();
+        mapView.getOverlays().add(locationOverlay);
+
+        compassOverlay = new CompassOverlay(this, new InternalCompassOrientationProvider(this), mapView);
+        compassOverlay.enableCompass();
+        mapView.getOverlays().add(compassOverlay);
 
         WebView.setWebContentsDebuggingEnabled(true);
 

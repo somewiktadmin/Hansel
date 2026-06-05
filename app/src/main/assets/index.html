@@ -76,10 +76,6 @@
 
 <canvas height="250" id="graph" width="350"></canvas>
 <div id="graphScale" style="font-size: 12px; color: #888"></div>
-<canvas height="350" id="map" width="350"></canvas>
-
-<button onclick="stop()">STOP</button>
-<button onclick="AndroidBridge.consolidateNow()">Rollup</button>
 
 <button class="sound-btn" onclick="resetToKilauea()">
     Reset to Kilauea
@@ -87,6 +83,11 @@
 <button class="sound-btn" onclick="resetTo250()">
     Reset to +-250
 </button>
+
+<canvas height="350" id="map" width="350"></canvas>
+
+<button onclick="stop()">STOP</button>
+<button onclick="AndroidBridge.consolidateNow()">Rollup</button>
 
 <button onclick="mark()">MARK</button>
 
