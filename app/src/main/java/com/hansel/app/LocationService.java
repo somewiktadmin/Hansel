@@ -4,6 +4,8 @@
 
 package com.hansel.app;
 
+import static com.hansel.app.MainActivity.mapView;
+
 import android.Manifest;
 import android.app.Service;
 import android.content.Intent;
@@ -922,6 +924,11 @@ public class LocationService extends Service {
             sendToUI(obj.toString());
 
             lastLocation = loc;
+
+            //TODO: need to have a user thing to zoom to current location
+            if (false)
+            mapView.getController().setCenter(
+                    new org.osmdroid.util.GeoPoint( loc.getLatitude(), loc.getLongitude() ));
 
             if (deadbandSuppress(altFt)) return;
 

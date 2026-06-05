@@ -11,6 +11,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -22,6 +23,8 @@ import android.webkit.WebView;
 
 import androidx.core.content.ContextCompat;
 
+import org.osmdroid.api.IMapController;
+import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.overlay.TilesOverlay;
 
 /**
@@ -144,6 +147,17 @@ public class MainActivity extends Activity {
         mapView.getOverlayManager().getTilesOverlay()
                 .setColorFilter(TilesOverlay.INVERT_COLORS);
 
+        mapView.getOverlayManager().getTilesOverlay().setLoadingBackgroundColor(android.R.color.black);
+        mapView.getOverlayManager().getTilesOverlay().setLoadingLineColor(Color.argb(255,0,255,0));
+
+        mapView.setBuiltInZoomControls(true);
+        mapView.setMultiTouchControls(true);
+
+        IMapController mapController = mapView.getController();
+        mapController.setZoom(9.5);
+        org.osmdroid.util.GeoPoint startPoint = new GeoPoint(19.402, -155.293);
+        mapController.setCenter(startPoint);
+
         WebView.setWebContentsDebuggingEnabled(true);
 
         WebSettings ws = webView.getSettings();
@@ -183,6 +197,26 @@ public class MainActivity extends Activity {
             startLoggingDefault();
         }
 
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        //this will refresh the osmdroid configuration on resuming.
+        //if you make changes to the configuration, use
+        //SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        //Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this));
+        mapView.onResume(); //needed for compass, my location overlays, v6.0.0 and up
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        //this will refresh the osmdroid configuration on resuming.
+        //if you make changes to the configuration, use
+        //SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        //Configuration.getInstance().save(this, prefs);
+        mapView.onPause();  //needed for compass, my location overlays, v6.0.0 and up
     }
 
     /**
