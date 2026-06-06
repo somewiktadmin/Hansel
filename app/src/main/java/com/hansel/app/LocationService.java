@@ -1,4 +1,4 @@
-// Hansel - GPS breadcrumb logger v0.985
+// Hansel - GPS breadcrumb logger v0.986
 // Copyright (C) 2026 GrimmsTales
 // GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -41,7 +41,7 @@ import java.util.Calendar;
 import java.util.Date;
 
 /**
- * Hansel GPS breadcrumb logger - v0.985.
+ * Hansel GPS breadcrumb logger - v0.986.
  * File format: NDJSON v0.931.
  *
  * <p>LocationService is the heart of Hansel.  It runs as an Android foreground
@@ -73,13 +73,13 @@ import java.util.Date;
  * standalone headless app.  The WebView UI will become a separate viewer
  * app (Gretel).  That split is post-v1.0.</p>
  *
- * @todo Add BootReceiver so the service survives a phone reboot without
+ * TODO: Add BootReceiver so the service survives a phone reboot without
  *       requiring the user to open the app.
- * @todo Move consumed hour files to ./backup/ instead of deleting them
+ * TODO: Move consumed hour files to ./backup/ instead of deleting them
  *       in consolidateOldFiles().
- * @todo Version existing monthly files (slots 61-99) before overwriting
+ * TODO: Version existing monthly files (slots 61-99) before overwriting
  *       in consolidateOldFiles().
- * @todo consolidateOldFiles() still uses SAF (DocumentFile) rather than
+ * TODO: consolidateOldFiles() still uses SAF (DocumentFile) rather than
  *       direct File access.  Low priority until the backup move is
  *       implemented.
  */
@@ -109,7 +109,7 @@ public class LocationService extends Service {
      * A new instance is created each time startGPS() is called - there is
      * no mechanism to call startGPS() twice, but if that ever changed it
      * would register a second listener without removing the first.
-     * @todo Add a removeLocationUpdates() guard at the top of startGPS().
+     * TODO: Add a removeLocationUpdates() guard at the top of startGPS().
      */
     LocationCallback callback;
 
@@ -136,7 +136,7 @@ public class LocationService extends Service {
      * audio/video sync and file rotation timing.  30 seconds is not a default,
      * it is the only working value at this stage of the project.</p>
      *
-     * @todo Remove the last_interval SharedPreference read in
+     * TODO: Remove the last_interval SharedPreference read in
      *       startLoggingDefault() - it will always be 30000 and pretending
      *       otherwise is misleading.
      */
@@ -152,7 +152,7 @@ public class LocationService extends Service {
     /**
      * Live deadband filter window size.  N=20 was overkill, N=5 overreacts,
      * N=10 was field-tuned on the Big Island as the best balance.
-     * @todo Future: std deviation spike filter for Saddle Road cell-mode
+     * TODO: Future: std deviation spike filter for Saddle Road cell-mode
      *       altitude thrashing.
      */
     private static final int DEADBAND_N = 10;
@@ -192,7 +192,7 @@ public class LocationService extends Service {
      * rate.  Prior to this clock, rotation was detected by handleLocation()
      * noticing a changed hour key - accurate only by accident on the target
      * devices.  This clock makes it reliable.
-     * @todo Send completed hour files to a spool directory for a future
+     * TODO: Send completed hour files to a spool directory for a future
      *       cloud upload utility.
      */
     private Handler  hourHandler          = new Handler(Looper.getMainLooper());
@@ -304,7 +304,7 @@ public class LocationService extends Service {
      * floor logic are retained as a reference for when interval adjustment
      * is revisited post-v1.0.</p>
      *
-     * @todo Revisit as part of the Gretel/headless-Hansel split.  A proper
+     * TODO: Revisit as part of the Gretel/headless-Hansel split.  A proper
      *       interval change will require stopping and restarting the listener
      *       atomically.
      * @param newInterval requested interval in milliseconds.
@@ -528,18 +528,18 @@ public class LocationService extends Service {
      * applies.  The one-record-per-line NDJSON format makes this a natural
      * sort-and-uniq operation on the raw lines.</p>
      *
-     * @todo Sort lines and remove exact duplicate lines during consolidation.
+     * TODO: Sort lines and remove exact duplicate lines during consolidation.
      *       Standard sort-and-uniq semantics on the raw NDJSON lines.
-     * @todo Move consumed files to ./backup/ instead of deleting them.
-     * @todo Version existing monthly files before overwriting.  Backup slots
+     * TODO: Move consumed files to ./backup/ instead of deleting them.
+     * TODO: Version existing monthly files before overwriting.  Backup slots
      *       are yyyy-MM-00_00-00-61.ndjson through yyyy-MM-00_00-00-99.ndjson.
      *       The seconds field 61-99 is deliberately outside the valid 00-59
      *       range so that any datetime parser will reject these as data files
      *       rather than silently misreading them as trackpoints.
-     * @todo Convert from SAF (DocumentFile) to direct File access, consistent
+     * TODO: Convert from SAF (DocumentFile) to direct File access, consistent
      *       with the rest of the file I/O in this class.
      *
-     * @todo Convert from SAF (DocumentFile) to direct File access.  SAF was
+     * TODO: Convert from SAF (DocumentFile) to direct File access.  SAF was
      *       used here because it was the available pattern at the time this
      *       method was written.  The rest of the file I/O in this class uses
      *       direct File access via MANAGE_ALL_FILES.  More critically, SAF
@@ -697,7 +697,7 @@ public class LocationService extends Service {
      * rolls over, so there is no risk of a composite straddling a
      * partially-consolidated month file.</p>
      *
-     * @todo If the service is started after noon and before midnight,
+     * TODO: If the service is started after noon and before midnight,
      *       the first scheduled noon will be tomorrow.  Files from today
      *       that age out of the 72h window overnight will not be consolidated
      *       until tomorrow noon.  Acceptable for now.
@@ -909,13 +909,16 @@ public class LocationService extends Service {
                 rotateFile(hour);
             }
 
+            String t = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
+            double lat = fmtLatLon(loc.getLatitude());
+            double lon = fmtLatLon(loc.getLongitude());
             if (loc.hasSpeed())   lastSpd = loc.getSpeed();
             if (loc.hasBearing()) lastCrs = loc.getBearing();
 
             JSONObject obj = new JSONObject();
-            obj.put("t",   new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date()));
-            obj.put("lat", fmtLatLon(loc.getLatitude()));
-            obj.put("lon", fmtLatLon(loc.getLongitude()));
+            obj.put("t", t  );
+            obj.put("lat", lat );
+            obj.put("lon", lon );
             obj.put("alt", Math.round(altFt));
             obj.put("acc", Math.round(loc.getAccuracy()));
             obj.put("spd", Math.round(lastSpd * 2.23694f));
@@ -923,12 +926,9 @@ public class LocationService extends Service {
 
             sendToUI(obj.toString());
 
-            lastLocation = loc;
+            MainActivity.updateStatusOverlay( t, lat, lon, altFt, lastSpd, lastCrs );
 
-            //TODO: need to have a user thing to zoom to current location
-            if (false)
-            mapView.getController().setCenter(
-                    new org.osmdroid.util.GeoPoint( loc.getLatitude(), loc.getLongitude() ));
+            lastLocation = loc;
 
             if (deadbandSuppress(altFt)) return;
 
@@ -1038,7 +1038,7 @@ public class LocationService extends Service {
      * which matters when you are standing on a lava field and cannot
      * easily read the screen.</p>
      *
-     * @todo Remove the Toast - say() is sufficient and consistent with the
+     * TODO: Remove the Toast - say() is sufficient and consistent with the
      *       rest of the codebase.  The Toast was a debugging remnant from
      *       before say() was reliable.
      *
@@ -1093,7 +1093,7 @@ public class LocationService extends Service {
      * permission is granted manually at sideload time, but the check is
      * required by the Android API regardless.</p>
      *
-     * @todo When BootReceiver is implemented, confirm that startGPS() is
+     * TODO: When BootReceiver is implemented, confirm that startGPS() is
      *       not called before the permission check in MainActivity has
      *       had a chance to run on a fresh install.
      */
@@ -1174,7 +1174,7 @@ public class LocationService extends Service {
             } else {
                 startForeground(1, NotificationHelper.build(this));
             }
-            interval = intent.getIntExtra("interval", 30000);
+            interval = 30000 ; //intent.getIntExtra("interval", 30000);
             consolidateOldFiles();
             scheduleTopOfHourRotation();
             scheduleNoon();

@@ -1,4 +1,4 @@
-// Hansel - GPS breadcrumb logger v0.985
+// Hansel - GPS breadcrumb logger v0.986
 // Copyright (C) 2026 GrimmsTales
 // GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -13,7 +13,7 @@ import android.os.Build;
 import androidx.core.app.NotificationCompat;
 
 /**
- * Hansel GPS breadcrumb logger - v0.985.
+ * Hansel GPS breadcrumb logger - v0.986.
  *
  * <p>Builds the foreground service notification required by Android SDK 26+
  * for any service that runs while the app is in the background.  On SDK 26+
@@ -28,7 +28,7 @@ import androidx.core.app.NotificationCompat;
  * <p>The small icon uses the system built-in ic_menu_mylocation.  A custom
  * Hansel icon is a post-v1.0 cosmetic item.</p>
  *
- * @todo Replace ic_menu_mylocation with a custom Hansel app icon.
+ * TODO: Replace ic_menu_mylocation with a custom Hansel app icon.
  */
 public class NotificationHelper {
 

@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-    Hansel GPS breadcrumb logger - v0.985
+    Hansel GPS breadcrumb logger - v0.986
     index.html - WebView UI, the only thing the user ever sees.
 
     This file runs inside an Android WebView (MainActivity.java).
@@ -67,11 +67,10 @@
         </style>
 </head>
 
-<body>
-<h2 title="Hansel-app logs paths. Gretel-app listens.">Hansel - notes v0.985</h2>
-
+<body><!-- if I keep this, it will go into a titlebar of a window or similar.
+<h2 title="Hansel-app logs paths. Gretel-app listens.">Hansel - notes v0.986</h2>
+-->
 <div id="status">Idle</div>
-
 <pre id="readout">Waiting...</pre>
 
 <canvas height="250" id="graph" width="350"></canvas>
@@ -129,7 +128,7 @@
 <button onclick="replay72h()">72hr</button>
 
 <script>
-            const HANSEL_VERSION = "0.985";
+            const HANSEL_VERSION = "0.986";
 
             // say() is defined first, before everything else, so that any
             // code anywhere in this file can call it safely.  During early
@@ -522,7 +521,8 @@
              * Persists the sounds array to localStorage.
              * localStorage works here because MainActivity sets
              * setDomStorageEnabled(true) on the WebView.
-             * @todo Move sound persistence to AndroidBridge so it survives
+             *
+             * TODO: Move sound persistence to AndroidBridge so it survives
              *       a WebView data clear without losing field vocabulary.
              */
             function saveSounds() {
@@ -814,7 +814,7 @@
              * is missing (desktop browser testing, broken WebView setup) the
              * failure is visible in the scrollbox rather than a silent hang.
              *
-             * @todo startLogging() is how the JS side starts LocationService.
+             * TODO: startLogging() is how the JS side starts LocationService.
              *       Once BootReceiver is implemented, the service will already
              *       be running on most starts and this call becomes a no-op
              *       due to the double-start guard in LocationService.
@@ -854,7 +854,7 @@
              * since the earliest versions.  It is a file rotation trigger
              * with a misleading name.  Renaming it is deferred.
              *
-             * @todo Rename the STOP button to ROLL or similar.
+             * TODO: Rename the STOP button to ROLL or similar.
              */
             function stop() {
                 if (isReplaying) {
@@ -894,6 +894,7 @@
                 updateUI(d);
                 drawMap();
                 drawGraph();
+                AndroidBridge.replayPoint(JSON.stringify(d));
             }
 
             /**
@@ -905,7 +906,7 @@
              * No cutoff filter - replays everything getFileList() returns.
              * For a 72-hour window use replay72h() instead.
              *
-             * @todo getFileList() currently returns all files including
+             * TODO: getFileList() currently returns all files including
              *       monthly rollup files.  Replay of a monthly file works
              *       but can be very slow at 1ms intervals.
              */

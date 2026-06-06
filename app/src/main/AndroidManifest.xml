@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Hansel - GPS breadcrumb logger - v0.985
+    Hansel - GPS breadcrumb logger - v0.986
     Copyright (C) 2026 GrimmsTales
     GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -47,7 +47,7 @@
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="Hansel-v0.985"
+        android:label="Hansel-v0.986"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Hansel">

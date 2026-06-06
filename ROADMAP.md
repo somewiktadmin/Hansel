@@ -1,19 +1,44 @@
 # Hansel / Gretel - Project Roadmap
 
 Hansel is a GPS breadcrumb logger for field research at Kilauea volcano,
-Big Island, Hawaii.  HST timezone throughout.  Always.
+Big Island, Hawaii.  HST timezone.
 
-## v0.985 - current
-- Javadoc pass: MainActivity, LocationService, WebAppInterface,
-  NotificationHelper, AndroidManifest, build.gradle, index.html
-- scheduleTopOfHourRotation() - clock-driven hourly file rotation,
-  replacing accidental GPS-callback-driven rotation
-- main() / window.addEventListener("load") fix for WebView canvas
-  sizing race condition
-- NDJSON file format v0.931: alt_units feet, spd_units MPH in header
+## v0.986 - COMPLETED
+- OSMDroid baseline: MAPNIK tiles, INVERT_COLORS, 60/40 layout
+- Map controls: [ME], [VH removed], [HMM], [+], [-]
+- Status overlay: lat/lon/alt/spd/crs/zoom/moon/sunrise/sunset
+- Replay overlay: Polyline segments, gap dots, 2500 point cap
+- OSMDroid tile caching: confirmed working, internal storage
+- MANAGE_ALL_FILES: startActivityForResult fix, initOsmdroid()
+
+## v0.99 - NEXT
+- SAF migration: replace all direct File I/O in LocationService
+  and WebAppInterface with DocumentFile/ContentResolver
+- Remove godmode (MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+- BootReceiver: auto-resume LocationService after reboot
+- consolidateOldFiles() backup move
+- import external files (with long explanation)
+- Supplemental tile cache: IFilesystemCache implementation
+  flat SAF directory, .z{z}.{x}.{y}.png naming, 365-day expiry
+- Elevation cache: USGS DEM + collected Hansel points,
+  prefer own data over USGS
+
+## v1.0 - Headless logger
+- Hansel becomes headless, no UI
+- Remove MainActivity WebView UI entirely
+- BootReceiver owns auto-start
+
+## v2.0 - Gretel viewer
+- Separate app, full native Android UI
+- Reads Hansel NDJSON logs
+- Full replay, elevation cache, tile cache UI
+- Import files from the OS that SAF gets stubborn about not recognizing,
+  like email-saved ndjson files, saved inside the Gretel directory.
+
+
 
 ## v0.99 - housekeeping before the split
-- BootReceiver: auto-resume LocationService after phone reboot
+- BootReceiver: auto-resume LocationService after phone reboot & unlock
 - consolidateOldFiles(): move consumed files to ./backup/ instead
   of deleting them
 - consolidateOldFiles(): version existing monthly files before

@@ -1,4 +1,4 @@
-// Hansel - GPS breadcrumb logger v0.985
+// Hansel - GPS breadcrumb logger v0.986
 // Copyright (C) 2026 GrimmsTales
 // GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -21,7 +21,7 @@ import java.io.File;
 import java.util.ArrayList;
 
 /**
- * Hansel GPS breadcrumb logger - v0.985.
+ * Hansel GPS breadcrumb logger - v0.986.
  *
  * <p>WebAppInterface is the bridge between index.html (JavaScript) and the
  * Android Java layer.  Every method annotated @JavascriptInterface is
@@ -41,9 +41,9 @@ import java.util.ArrayList;
  * is either running or it is not - if it is not running, the null checks
  * short-circuit cleanly.</p>
  *
- * @todo Remove or replace setInterval() once updateInterval() is fully
+ * TODO: Remove or replace setInterval() once updateInterval() is fully
  *       retired from LocationService.
- * @todo Remove getTreeDir() - it is never called.  All file access goes
+ * TODO: Remove getTreeDir() - it is never called.  All file access goes
  *       through resolveTreeUriToFile().  Retained only because removing
  *       dead SAF code requires confirming nothing else sneaks back to it.
  */
@@ -57,6 +57,11 @@ public class WebAppInterface {
      * calls in resolveTreeUriToFile() and getTreeDir().
      */
     public WebAppInterface(Context context) { this.context = context; }
+
+    @android.webkit.JavascriptInterface
+    public void replayPoint(String data) {
+        MainActivity.handleReplayPoint(data);
+    }
 
     /**
      * Triggers an immediate monthly consolidation run.
@@ -73,7 +78,7 @@ public class WebAppInterface {
     /**
      * Sets the GPS logging interval.  Delegates to LocationService.updateInterval().
      *
-     * @todo updateInterval() is guarded by if(false) in LocationService and
+     * TODO: updateInterval() is guarded by if(false) in LocationService and
      *       does nothing.  This method is therefore also a no-op.  Both should
      *       be removed or properly implemented when interval adjustment is
      *       revisited post-v1.0.
@@ -91,7 +96,7 @@ public class WebAppInterface {
      * tree URI stored in HanselPrefs.  Never called - all file access goes
      * through resolveTreeUriToFile() instead.
      *
-     * @todo Remove once confirmed nothing will revert to SAF access.
+     * TODO: Remove once confirmed nothing will revert to SAF access.
      */
     private DocumentFile getTreeDir() {
         SharedPreferences prefs = context.getSharedPreferences(

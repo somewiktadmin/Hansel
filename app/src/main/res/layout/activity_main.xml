@@ -1,19 +1,127 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Hansel v0.985 - main layout
-     MapView (OSMDroid) takes 60% of screen height.
-     WebView takes 40% for controls, graph, and scrollbox. -->
+<!-- Hansel v0.986 - main layout
+     MapView (OSMDroid) takes 60% of screen height via weight 3.
+     WebView takes 40% for controls, graph, and scrollbox via weight 2.
+     FrameLayout wrapper allows native views to float over the map. -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <org.osmdroid.views.MapView
-        android:id="@+id/mapView"
+    <!-- Map area: OSMDroid + floating controls stacked in a FrameLayout -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="3" />
+        android:layout_weight="3">
 
+        <org.osmdroid.views.MapView
+            android:id="@+id/mapView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- Status overlay - top left, updates on each location fix
+        For example: Hansel  2026-06-05 18:36:21  19.703125, -155.983718  1242ft  Z:14  0 MPH
+          o  WG NM in 10d  Rise 04:21/04:51/05:20 Set 19:25/19:53/20:23  cpu:0f  Bat:100%
+         Note to self: #aa rr gg bb :== alpha, red, green, blue. (Alpha is opaque-ness) -->
+        <TextView
+            android:id="@+id/statusOverlay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_margin="6dp"
+            android:background="#4F000000"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            android:fontFamily="monospace"
+            android:padding="4dp"
+            android:layout_marginLeft="60dp"
+            android:layout_marginRight="60dp"
+            android:text="Hansel" />
+
+        <!-- REPLAY PAUSED floatie - top center, hidden until user pans during replay -->
+        <TextView
+            android:id="@+id/replayPausedFloatie"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|center_horizontal"
+            android:layout_marginTop="4dp"
+            android:text="[ REPLAY PAUSED ]"
+            android:visibility="gone"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:background="#CC000000"
+            android:textColor="#FFFFFF"
+            android:textSize="8sp"
+            android:textStyle="bold" />
+
+        <!-- Right-edge control column: location buttons above zoom controls -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_marginBottom="24dp"
+            android:layout_marginEnd="8dp"
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
+
+            <!-- [ME] - snap to current GPS position -->
+            <Button
+                android:id="@+id/btnMe"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:text="ME"
+                android:textSize="8sp"
+                android:padding="0dp"
+                android:layout_marginBottom="4dp" />
+
+            <!-- [HMM] - Near Halemaumau - center-ish of crater 19.4065, -155.2836 -->
+            <Button
+                android:id="@+id/btnHMM"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:text="HMM"
+                android:textSize="8sp"
+                android:padding="0dp"
+                android:layout_marginBottom="4dp" />
+
+            <!-- [+] zoom in -->
+            <Button
+                android:id="@+id/btnZoomIn"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:text="+"
+                android:textSize="8sp"
+                android:padding="0dp"
+                android:layout_marginBottom="0dp" />
+
+            <!-- Vertical zoom slider - thumb travels bottom to top = low to high zoom - - >
+            <SeekBar
+                android:id="@+id/zoomSlider"
+                android:layout_width="32dp"
+                android:layout_height="120dp"
+                android:max="19"
+                android:progress="12"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp" />
+                -->
+
+            <!-- [-] zoom out -->
+            <Button
+                android:id="@+id/btnZoomOut"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:text="-"
+                android:textSize="8sp"
+                android:padding="0dp" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <!-- WebView: controls, graph, scrollbox - bottom 40% -->
     <WebView
         android:id="@+id/webView"
         android:layout_width="match_parent"

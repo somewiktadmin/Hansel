@@ -1,5 +1,5 @@
 /*
- * Hansel - GPS breadcrumb logger v0.985
+ * Hansel - GPS breadcrumb logger v0.986
  * Copyright (C) 2026 GrimmsTales
  * GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
  */
@@ -8,7 +8,6 @@ package com.hansel.app;
 
 import android.Manifest;
 import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -18,63 +17,41 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
-import android.util.DisplayMetrics;
+import android.view.View;
 import android.view.Window;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.widget.Button;
+import android.widget.TextView;
 
 import androidx.core.content.ContextCompat;
 
-import org.osmdroid.api.IMapController;
+import org.osmdroid.api.IGeoPoint;
+import org.osmdroid.events.MapListener;
+import org.osmdroid.events.ScrollEvent;
+import org.osmdroid.events.ZoomEvent;
 import org.osmdroid.util.GeoPoint;
-import org.osmdroid.views.overlay.ScaleBarOverlay;
 import org.osmdroid.views.overlay.TilesOverlay;
-import org.osmdroid.views.overlay.compass.CompassOverlay;
-import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider;
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider;
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 
+import java.util.Date;
+
 /**
- * Hansel GPS breadcrumb logger - v0.985.
- * File format: NDJSON v0.93 (v0.931 pending).
+ * Hansel v0.986 main activity.
  *
- * <p>MainActivity is the single Activity for the Hansel app.  It owns the
- * WebView that hosts index.html, and it owns the startup permission sequence.
- * Everything the user sees is rendered inside that WebView.  The Java layer
- * exists to broker file I/O, GPS, and Android permissions that JavaScript
- * cannot touch directly.</p>
- *
- * <p>Intended startup flow:
- * <ol>
- *   <li>Request MANAGE_APP_ALL_FILES_ACCESS (SDK 30+) so LocationService and
- *       WebAppInterface can read and write the flat log directory via direct
- *       File access, bypassing SAF entirely.</li>
- *   <li>Request POST_NOTIFICATIONS (SDK 33+) for the foreground service
- *       notification.</li>
- *   <li>Request ACCESS_FINE_LOCATION.</li>
- *   <li>On first launch, open ACTION_OPEN_DOCUMENT_TREE so the user picks a
- *       working directory.  Persist the URI in HanselPrefs so subsequent
- *       launches skip the picker.</li>
- *   <li>Load index.html into the WebView and start LocationService.</li>
- * </ol>
- * </p>
- *
- * <p>Current reality: the app is sideloaded via Android Studio and all
- * permissions are granted manually at install time.  The MANAGE_ALL_FILES
- * request blocks are not reliably firing.  There is no mechanism for the
- * user to change the working directory after first launch.
- * See todos below.</p>
+ * TODO: Rewrite this Javadoc block once OSMDroid integration and replay are stable.
  *
  * <p>Future: MainActivity and the WebView UI are destined to become a
  * separate viewer app (Gretel).  The logging core - LocationService and
  * its file I/O - will move to a standalone headless Hansel app.  That
  * split is post-v1.0.</p>
  *
- * @todo Consolidate the two MANAGE_ALL_FILES blocks into one, in the right
+ * TODO Consolidate the two MANAGE_ALL_FILES blocks into one, in the right
  *       place, and confirm it actually works on the target devices.
- * @todo Add a "change folder" button or menu item so the user can re-pick
+ * TODO: Add a "change folder" button or menu item so the user can re-pick
  *       the working directory without reinstalling.
- * @todo Add BootReceiver to auto-resume LocationService after reboot, then
+ * todo: Add BootReceiver to auto-resume LocationService after reboot, then
  *       remove startLoggingDefault() from this class entirely.
  */
 public class MainActivity extends Activity {
@@ -82,17 +59,56 @@ public class MainActivity extends Activity {
     public static WebView webView;
     public static org.osmdroid.views.MapView mapView;
 
-    // 2026-05-10  for Hansel-v0.97 yay
-    // At Hansel v1 and 0.94, start using the number 1094
-    private static final int REQUEST_TREE = 1094;
+    private TextView replayPausedFloatie;
+    //private SeekBar zoomSlider;
+    //private boolean sliderTracking = false; // suppress map->slider echo
 
-    static final String PREFS_NAME   = "HanselPrefs";
-    static final String PREF_TREE_URI = "tree_uri";
+    // At Hansel v1 and 0.94, started using the number 1094
+    private static final int REQUEST_TREE = 1094;
+    private static final int REQUEST_TILE = 1095;
+    private static final int REQUEST_SPOOL= 1096;
+
+    static final String PREFS_NAME    = "HanselPrefs";
+    static final String PREF_TREE_URI = "tree_uri"; //Hansel ndJSON logs
+    static final String PREF_TILE_URI = "3rd tile cache layer"; // supplemental tile cache on SD card
+    static final String PREF_SPOOL_URI= "cloud uploads"; // cloud upload spool directory
+
     private MyLocationNewOverlay locationOverlay;
-    private CompassOverlay compassOverlay;
-    private ScaleBarOverlay scaleBarOverlay;
+    //private CompassOverlay compassOverlay;
+
+    public static TextView statusOverlay;
+
+    // cached values - recalculate only when date changes
+    private static String lastCalcDate = "";
+    private static String cachedMoon   = "";
+    private static String[] cachedSun  = new String[6];
+
+    private static boolean updatingMap = false;
+    private static boolean replayInProgress = false;
+
+    private static org.osmdroid.views.overlay.Polyline replayPointsOverlay;
+    private static org.osmdroid.views.overlay.Marker   replayHeadMarker;
+    private static boolean  liveFollowMode  = true;
+    private static GeoPoint lastReplayPoint = null;
+    private static int      replayPointCount = 0;
+    private static java.util.List<org.osmdroid.views.overlay.Polyline>
+            replaySegments = new java.util.ArrayList<>();
+    private static java.util.List<org.osmdroid.views.overlay.Marker>
+            replayGapDots  = new java.util.ArrayList<>();
+
+    private static final int    MAX_REPLAY_POINTS = 2500;
+    private static final int    REPLAY_LINE_COLOR = Color.argb(127, 127, 100, 40);
+    private static final float  REPLAY_LINE_WIDTH = 4f;
+    private static final double GAP_METERS        = 1609.34;
+
 
     /**
+     *
+     * >>> Hybrid mapView / webView split this version <<<
+     *
+     * currently playing with mapView experiments...older webView narrative is still
+     * somewhat relevant (gosh, two days ago?) as I try different things.
+     *
      * Initializes the activity, requests permissions, builds the WebView, and
      * either prompts for a working directory (first launch) or loads the UI and
      * starts the location service (subsequent launches).
@@ -111,21 +127,21 @@ public class MainActivity extends Activity {
      * stored, the UI loads immediately and startLoggingDefault() starts the
      * service.</p>
      *
-     * @todo Runtime permission requests are currently bypassed by manual grant
+     * TODO: Runtime permission requests are currently bypassed by manual grant
      *       at sideload time.  Before any Google Play submission these blocks
      *       must be tested cold - Google Play requires that the app request
      *       only the permissions it genuinely needs, at the moment it needs
      *       them, with a rationale shown to the user.
+     *
      * @param savedInstanceState Android Activity saved state bundle.  Not used
-     *       here because the WebView reconstructs cleanly from its asset on every
-     *       start.  Would matter if the app needed to restore scroll position,
-     *       form state, or other UI context across Activity recreation events
-     *       such as screen rotation or system memory reclaim.
+     *        here because the WebView reconstructs cleanly from its asset on every
+     *        start.
      */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
+        android.util.Log.d("Hansel", "onCreate firing");
 
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
@@ -144,54 +160,165 @@ public class MainActivity extends Activity {
             }
         }
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                Intent intent = new Intent(
+                        Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:" + getPackageName())
+                );
+                startActivityForResult(intent, 2001);
+                return; // wait for result before continuing onCreate
+            }
+        }
+
         setContentView(R.layout.activity_main);
         webView = findViewById(R.id.webView);
-        mapView  = findViewById(R.id.mapView);
+        mapView = findViewById(R.id.mapView);
 
+        // OSMDroid init
+        initOsmdroid();
         org.osmdroid.config.Configuration.getInstance()
-                .setUserAgentValue("Hansel/0.985 personal field logger - single user, Kilauea HI");
-        mapView.setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK);
-        mapView.getController().setZoom(15.0);
-        mapView.getController().setCenter(
-                new org.osmdroid.util.GeoPoint(19.402, -155.29));
+                .setUserAgentValue(
+                        "Hansel/0.986 personal field logger - single user, Kilauea HI");
+        //cache for OSMDroid is not allowed to live on sdcard, so try this
+        org.osmdroid.config.Configuration.getInstance()
+                .setOsmdroidBasePath(getFilesDir());
+        org.osmdroid.config.Configuration.getInstance()
+                .setOsmdroidTileCache(new java.io.File(getFilesDir(), "tiles"));
+        mapView.setTileSource(
+                org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK);
+        //mapView.setBuiltInZoomControls(false);
+        mapView.setMultiTouchControls(true);
+        mapView.getController().setZoom(12);
+        mapView.getController().setCenter(new GeoPoint(19.402, -155.293));
+
         mapView.getOverlayManager().getTilesOverlay()
                 .setColorFilter(TilesOverlay.INVERT_COLORS);
+        //mapView.getOverlayManager().getTilesOverlay()
+        //        .setLoadingBackgroundColor(Color.BLACK);
+        mapView.getOverlayManager().getTilesOverlay()
+                .setLoadingLineColor(Color.argb(255, 0, 255, 0));
 
-        mapView.getOverlayManager().getTilesOverlay().setLoadingBackgroundColor(android.R.color.black);
-        mapView.getOverlayManager().getTilesOverlay().setLoadingLineColor(Color.argb(255,0,255,0));
+        replayPausedFloatie = findViewById(R.id.replayPausedFloatie);
 
-        mapView.setBuiltInZoomControls(true);
-        mapView.setMultiTouchControls(true);
+        statusOverlay = findViewById(R.id.statusOverlay);
 
-        IMapController mapController = mapView.getController();
-        mapController.setZoom(9.5);
-        org.osmdroid.util.GeoPoint startPoint = new GeoPoint(19.402, -155.293);
-        mapController.setCenter(startPoint);
+        Button btnMe      = findViewById(R.id.btnMe);
+        Button btnHMM     = findViewById(R.id.btnHMM);
+        Button btnZoomIn  = findViewById(R.id.btnZoomIn);
+        Button btnZoomOut = findViewById(R.id.btnZoomOut);
+        //zoomSlider        = findViewById(R.id.zoomSlider);
 
-        locationOverlay = new MyLocationNewOverlay(new GpsMyLocationProvider(this),mapView);
+        // [ME] - animate to last known GPS position
+        btnMe.setOnClickListener(v -> {
+            if (locationOverlay.getMyLocation() != null) {
+                mapView.getController().setZoom(10);
+                mapView.getController().animateTo(locationOverlay.getMyLocation());
+            }
+        });
+
+        // [HMM] - Halemaumau
+        btnHMM.setOnClickListener(v -> {
+            mapView.getController().setZoom(14);
+            mapView.getController().animateTo(new GeoPoint(19.4095, -155.2886 ));
+        });
+
+        // [+] and [-] step zoom by 1
+        btnZoomIn.setOnClickListener(v -> {
+            double z = Math.min(mapView.getZoomLevelDouble() + 1.0, 19.0);
+            mapView.getController().setZoom(z);
+            //syncSliderToMap();
+        });
+
+        btnZoomOut.setOnClickListener(v -> {
+            double z = Math.max(mapView.getZoomLevelDouble() - 1.0, 1.0);
+            mapView.getController().setZoom(z);
+            //syncSliderToMap();
+        });
+
+        // zoom slider - user drag sets map zoom
+        // rotation="270" means max (top) = high zoom, min (bottom) = low zoom
+        /*
+        zoomSlider.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(android.widget.SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser) {
+                    mapView.getController().setZoom((double) progress + 1.0);
+                }
+            }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar seekBar) { sliderTracking = true; }
+            @Override public void onStopTrackingTouch(android.widget.SeekBar seekBar)  { sliderTracking = false; }
+        });*/
+
+        locationOverlay = new MyLocationNewOverlay(
+                new GpsMyLocationProvider(this), mapView);
         locationOverlay.enableMyLocation();
         mapView.getOverlays().add(locationOverlay);
 
-        compassOverlay = new CompassOverlay(this, new InternalCompassOrientationProvider(this), mapView);
+        mapView.addMapListener(new MapListener() {
+            @Override
+            public boolean onScroll(ScrollEvent event) {
+
+                if (!replayInProgress) {
+                    liveFollowMode = false;
+                    replayPausedFloatie.setVisibility(View.VISIBLE);
+                    webView.evaluateJavascript("replayPause()", null);
+                }
+                java.text.SimpleDateFormat sdf =
+                        new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",
+                                java.util.Locale.US);
+                String ts = sdf.format(new Date());
+                IGeoPoint gs = mapView.getMapCenter();
+
+                if (!updatingMap) {
+                    updatingMap = true;
+                    updateStatusOverlay( ts, gs.getLatitude(), gs.getLongitude(),
+                        0, 0, 0 ); //altFt0, spdMph, crsDeg  );
+                    updatingMap = false;
+                }
+                return false;
+            }
+
+            @Override
+            public boolean onZoom(ZoomEvent event) {
+                java.text.SimpleDateFormat sdf =
+                        new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",
+                                java.util.Locale.US);
+                String ts = sdf.format(new Date() );
+                IGeoPoint gs = mapView.getMapCenter();
+                updateStatusOverlay( ts, gs.getLatitude(), gs.getLongitude(),
+                        0, 0, 0 ); //altFt0, spdMph, crsDeg  );
+                return false;
+            }
+        });
+
+        /*
+        compassOverlay = new CompassOverlay(
+                this, new InternalCompassOrientationProvider(this), mapView);
         compassOverlay.enableCompass();
         mapView.getOverlays().add(compassOverlay);
+         */
 
+        // replay overlays - added to map but empty until replay starts
+        replayPointsOverlay = new org.osmdroid.views.overlay.Polyline();
+        replayPointsOverlay.setColor(Color.argb(180, 255, 165, 0)); // orange trail
+        replayPointsOverlay.setWidth(4f);
+        mapView.getOverlays().add(replayPointsOverlay);
+
+        replayHeadMarker = new org.osmdroid.views.overlay.Marker(mapView);
+        replayHeadMarker.setAnchor(
+                org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
+                org.osmdroid.views.overlay.Marker.ANCHOR_CENTER);
+        mapView.getOverlays().add(replayHeadMarker);
+
+        // WebView init
         WebView.setWebContentsDebuggingEnabled(true);
-
         WebSettings ws = webView.getSettings();
         ws.setJavaScriptEnabled(true);
         ws.setDomStorageEnabled(true);
         ws.setAllowFileAccess(true);
         ws.setAllowContentAccess(true);
-
-        webView.addJavascriptInterface(
-                new WebAppInterface(this),
-                "AndroidBridge"
-        );
-
-        // check if user has already picked a folder
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String savedUri = prefs.getString(PREF_TREE_URI, null);
+        webView.addJavascriptInterface(new WebAppInterface(this), "AndroidBridge");
 
         // TODO: confirm MANAGE_ALL_FILES request fires correctly on target
         // devices.  Currently all permissions granted manually at sideload.
@@ -205,6 +332,9 @@ public class MainActivity extends Activity {
             }
         }
 
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String savedUri = prefs.getString(PREF_TREE_URI, null);
+
         if (savedUri == null) {
             // first launch - ask user to pick a folder
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
@@ -214,27 +344,557 @@ public class MainActivity extends Activity {
             webView.loadUrl("file:///android_asset/index.html");
             startLoggingDefault();
         }
-
+        initOsmdroid();
     }
+
+    /*
+     * Syncs the zoom slider thumb to the current map zoom level.
+     * No-op while the user is actively dragging the slider (sliderTracking == true)
+     * to avoid feedback loops.
+     */
+    /*
+    private void syncSliderToMap() {
+        if (!sliderTracking) {
+            int z = (int) Math.round(mapView.getZoomLevelDouble()) - 1;
+            zoomSlider.setProgress(Math.max(0, Math.min(z, zoomSlider.getMax())));
+        }
+    }
+     */
+
+
+
+    /**
+     * Called from WebAppInterface.replayPoint() on each replay step.
+     * Adds the point to the current polyline segment.  If the jump
+     * from the last point exceeds one mile, drops a dot at the remote
+     * point and starts a fresh segment - map does not follow across
+     * the gap.  Enforces MAX_REPLAY_POINTS by removing the oldest
+     * segment when exceeded.
+     *
+     * @param data JSON string from JS, contains t, lat, lon, etc.
+     */
+    public static void handleReplayPoint(String data) {
+        try {
+            org.json.JSONObject d = new org.json.JSONObject(data);
+            if (!d.has("t")) return;
+            double lat = d.getDouble("lat");
+            double lon = d.getDouble("lon");
+            GeoPoint pt = new GeoPoint(lat, lon);
+            boolean gap = false;
+
+            if (lastReplayPoint != null) {
+                double dist = pt.distanceToAsDouble(lastReplayPoint);
+                if (dist > GAP_METERS) {
+                    gap = true;
+                    org.osmdroid.views.overlay.Marker dot =
+                            new org.osmdroid.views.overlay.Marker(mapView);
+                    dot.setPosition(pt);
+                    dot.setAnchor(
+                            org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
+                            org.osmdroid.views.overlay.Marker.ANCHOR_CENTER);
+                    dot.setIcon(makeGapDot());
+                    dot.setTitle("");
+                    mapView.getOverlays().add(dot);
+                    replayGapDots.add(dot);
+                    startNewReplaySegment();
+                }
+            }
+
+            replayPointsOverlay.addPoint(pt);
+            lastReplayPoint = pt;
+            replayPointCount++;
+
+            if (replayPointCount > MAX_REPLAY_POINTS
+                    && !replaySegments.isEmpty()) {
+                org.osmdroid.views.overlay.Polyline oldest =
+                        replaySegments.remove(0);
+                replayPointCount -= oldest.getActualPoints().size();
+                mapView.getOverlays().remove(oldest);
+            }
+
+            replayHeadMarker.setPosition(pt);
+
+            if (liveFollowMode && !gap) {
+                mapView.getController().animateTo(pt);
+            }
+
+            mapView.invalidate();
+            updateStatusOverlay(d.getString("t"), lat, lon,
+                    d.getDouble("alt"), d.getDouble("spd"), d.getDouble("crs") );
+
+        } catch (Exception e) {
+            android.util.Log.e("Hansel",
+                    "replayPoint error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Starts a fresh polyline segment and tracks it in replaySegments.
+     * Call once from onCreate() to initialize, then on each gap.
+     */
+    private static void startNewReplaySegment() {
+        replayPointsOverlay = new org.osmdroid.views.overlay.Polyline();
+        replayPointsOverlay.setColor(REPLAY_LINE_COLOR);
+        replayPointsOverlay.setWidth(REPLAY_LINE_WIDTH);
+        mapView.getOverlays().add(replayPointsOverlay);
+        replaySegments.add(replayPointsOverlay);
+    }
+
+    /**
+     * Clears all replay overlays and resets state.
+     * Call on stop, rewind, or new file load.
+     */
+    public static void clearReplay() {
+        for (org.osmdroid.views.overlay.Polyline seg : replaySegments) {
+            mapView.getOverlays().remove(seg);
+        }
+        replaySegments.clear();
+        for (org.osmdroid.views.overlay.Marker dot : replayGapDots) {
+            mapView.getOverlays().remove(dot);
+        }
+        replayGapDots.clear();
+        replayPointCount = 0;
+        lastReplayPoint  = null;
+        liveFollowMode   = true;
+        startNewReplaySegment();
+        mapView.invalidate();
+    }
+
+    /**
+     * Creates a filled circle bitmap for gap dot markers.
+     * 3px radius matches JS arc() dot.  12x12 bitmap for clean edges.
+     * Fixed screen size, zoom-invariant.
+     */
+    private static android.graphics.drawable.Drawable makeGapDot() {
+        android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(
+                12, 12, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas c = new android.graphics.Canvas(bm);
+        android.graphics.Paint p = new android.graphics.Paint(
+                android.graphics.Paint.ANTI_ALIAS_FLAG);
+        p.setColor(REPLAY_LINE_COLOR);
+        c.drawCircle(6, 6, 3, p);
+        return new android.graphics.drawable.BitmapDrawable(
+                mapView.getResources(), bm);
+    }
+
+/*
+    public static void handleReplayPoint(String data) {
+        try {
+            org.json.JSONObject d = new org.json.JSONObject(data);
+            if (!d.has("t")) return;
+            double lat = d.getDouble("lat");
+            double lon = d.getDouble("lon");
+            // update map overlay
+            GeoPoint pt = new GeoPoint(lat, lon);
+            replayPointsOverlay.addPoint(pt);
+            replayHeadMarker.setPosition(pt);
+            replayInProgress = true;
+            updatingMap = true;
+            if (liveFollowMode) {
+                mapView.getController().animateTo(pt);
+            }
+            replayInProgress = false;
+            updatingMap = false;
+            mapView.invalidate();
+            // update status line
+            updateStatusOverlay(d.getString("t"), lat, lon, d.getDouble("altFt"),
+                    d.getDouble("spd"), d.getDouble("crs") );
+        } catch (Exception e) {
+            android.util.Log.e("Hansel", "replayPoint parse error: " + e.getMessage());
+        }
+    }
+*/
+
 
     @Override
     public void onResume() {
         super.onResume();
-        //this will refresh the osmdroid configuration on resuming.
-        //if you make changes to the configuration, use
-        //SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-        //Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this));
-        mapView.onResume(); //needed for compass, my location overlays, v6.0.0 and up
+        mapView.onResume();
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        //this will refresh the osmdroid configuration on resuming.
-        //if you make changes to the configuration, use
-        //SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-        //Configuration.getInstance().save(this, prefs);
-        mapView.onPause();  //needed for compass, my location overlays, v6.0.0 and up
+        mapView.onPause();
+    }
+
+    private void initOsmdroid() {
+        android.util.Log.d("Hansel", "initOsmDroid() firing");
+        java.io.File cacheDir = new java.io.File(getExternalFilesDir(null), "tiles");
+        android.util.Log.d("Hansel", "tile cache path: " + cacheDir.getAbsolutePath()
+                + " exists=" + cacheDir.exists()
+                + " writable=" + cacheDir.canWrite());
+        org.osmdroid.config.Configuration.getInstance()
+                .setOsmdroidBasePath(getExternalFilesDir(null));
+        org.osmdroid.config.Configuration.getInstance()
+                .setOsmdroidTileCache(cacheDir);
+        org.osmdroid.config.Configuration.getInstance()
+                .setExpirationOverrideDuration( 1000L * 60 * 60 * 24 * 365 );
+    }
+
+
+// ====
+// Call this from the location callback whenever a new fix arrives.
+// All values reflect the same instant - timestamp is honest last-fix time.
+// ====
+
+    /**
+     * Updates the status overlay with the latest location fix and device state.
+     * Called only on real location updates - timestamp reflects actual fix time,
+     * not wall clock.  Never call on a timer.
+     *
+     * @param fixTime fix datetime (HST)
+     * @param lat  latitude decimal degrees
+     * @param lon  longitude decimal degrees
+     * @param altFt altitude in feet
+     * @param spdMph speed in MPH
+     * @param crsDeg course degrees from north
+     */
+    public static void updateStatusOverlay( String fixTime, double lat, double lon,
+                                           double altFt, double spdMph, double crsDeg ) {
+
+        if (statusOverlay == null) return;
+
+        /*
+        java.text.SimpleDateFormat sdf =
+                new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",
+                        java.util.Locale.US);
+        String ts = sdf.format(new java.util.Date(fixTime)); */
+        // translation of the javascript version
+        String ts = fixTime.replace("_", " ")
+                .replaceAll("-(\\d{2})-(\\d{2})$", ":$1:$2");
+
+        int zoom  = (int) Math.round(mapView.getZoomLevelDouble());
+
+        // cache hit rate from OSMDroid
+        String cache = getCacheRate();
+
+        // battery
+        /*
+        android.content.Intent bi = statusOverlay.getContext()
+                .registerReceiver(null,
+                        new android.content.IntentFilter(
+                                android.content.Intent.ACTION_BATTERY_CHANGED));
+        int batPct = 0;
+        if (false) if (bi != null) {
+            int level = bi.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, 0);
+            int scale = bi.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100);
+            batPct = (int) (100f * level / scale);
+        }
+        */
+
+        // CPU temp in degrees F - reads first available cpu thermal zone
+        //float cpuF = getCpuTempF();
+
+        // moon phase crescent char (176 = degree sign reused as placeholder -
+        // moon char selected from 28-step array by phase fraction)
+        String moon = getMoonPhase( ts, lat, lon );
+
+        // sunrise/sunset - astronomical/nautical/civil
+        String[] sunTimes = getSunTimes( ts, lat, lon );
+
+        String line = String.format(java.util.Locale.US,
+                "Hansel v0.986 %s  %.6f, %.6f  %dft  Z:%d  %d MPH  %d\u00b0  %s",
+                        //+ "  Rise %s/%s/%s  Set %s/%s/%s  CPU:%d\u00b0f  Bat:%d%%", //  Crt:%s",
+                ts, lat, lon, (int) altFt, zoom,
+                (int) spdMph, (int) crsDeg, moon );
+                //sunTimes[0], sunTimes[1], sunTimes[2],
+                //sunTimes[3], sunTimes[4], sunTimes[5],
+                //batPct) ; //, cache);
+
+        statusOverlay.post(() -> statusOverlay.setText(line));
+    }
+
+// ====
+// Helpers
+// ====
+
+
+
+    /**
+     *  Returns OSMDroid cache hit rate as "nn.n%" or "n/a" if unavailable.
+     * TODO: find a public API for OSMDroid 6.1.18 cache hit rate.
+     * TODO: cache my files atop of their bad caching and calculate my own success rate
+     */
+    private static String getCacheRate() {
+        return "n/a";
+    }
+
+/*
+    private static String getCacheRate() {
+        try {
+            org.osmdroid.tileprovider.MapTileProviderBase p =
+                    mapView.getTileProvider();
+            long success = p.mTileCache.getHitCount();
+            long total   = p.mTileCache.getHitCount()
+                    + p.mTileCache.getMissCount();
+            if (total == 0) return "n/a";
+            return String.format(java.util.Locale.US, "%.1f%%",
+                    100.0 * success / total);
+        } catch (Exception e) {
+            return "n/a";
+        }
+    }
+*/
+
+    /**
+     *  Reads the first cpu thermal zone and converts to Fahrenheit.
+     *  Supposedly manufacturer-specific code, but doesn't work on any phone on earth.
+     */
+    private static float getCpuTempF() {
+        try {
+            java.io.BufferedReader br = new java.io.BufferedReader(
+                    new java.io.FileReader(
+                            "/sys/class/thermal/thermal_zone0/temp") );
+            float raw = Float.parseFloat( br.readLine().trim() );
+            br.close();
+            // most devices report millidegrees C, some report degrees C
+            float c = raw > 1000 ? raw / 1000f : raw;
+            return c * 9f / 5f + 32f;
+        } catch (Exception e) {
+            return 0f;
+        }
+    }
+
+
+    private static void recalcDailyIfNeeded(String t, double lat, double lon) {
+        String date = t.substring(0, 10); // "yyyy-MM-dd"
+        if (date.equals(lastCalcDate)) return;
+        lastCalcDate = date;
+        cachedMoon = calcMoonPhase(date);
+        cachedSun  = calcSunTimes(date, lat, lon);
+    }
+
+    public static String getMoonPhase(String t, double lat, double lon) {
+        recalcDailyIfNeeded(t, lat, lon);
+        return cachedMoon;
+    }
+
+    public static String[] getSunTimes(String t, double lat, double lon) {
+        recalcDailyIfNeeded(t, lat, lon);
+        return cachedSun;
+    }
+
+// ---------------------------------------------------------------------------
+
+    /**
+     * Returns moon phase label and days to next FM or NM.
+     * e.g. "WG FM in 4d"
+     * Reference new moon: 2000-01-06 - a known NM date, no time needed.
+     * Cycle = 29.53059 days.
+     */
+    private static String calcMoonPhase(String date) {
+        // parse date digits directly
+        int y = Integer.parseInt(date.substring(0, 4));
+        int m = Integer.parseInt(date.substring(5, 7));
+        int d = Integer.parseInt(date.substring(8, 10));
+
+        // days since reference new moon 2000-01-06 using integer day arithmetic
+        // Julian Day Number - no time component needed, day resolution is fine
+        long jd  = julianDay(y, m, d);
+        long jd0 = julianDay(2000, 1, 6); // reference NM
+        double age = ((jd - jd0) % 29.53059 + 29.53059) % 29.53059; // 0..29.53
+
+        // 8 named phases, 28-step label array
+        String phase;
+        double daysToFM;
+        double daysToNM;
+        if      (age <  1.85) { phase = "NM"; }
+        else if (age <  7.38) { phase = "WC"; }
+        else if (age < 11.07) { phase = "FQ"; }
+        else if (age < 14.77) { phase = "WG"; }
+        else if (age < 16.61) { phase = "FM"; }
+        else if (age < 22.15) { phase = "WG"; } // waning gibbous
+        else if (age < 25.84) { phase = "LQ"; }
+        else                  { phase = "WC"; } // waning crescent
+
+        // days to next FM and NM
+        daysToFM = (14.765 - age + 29.53059) % 29.53059;
+        daysToNM = (29.53059 - age) % 29.53059;
+
+        if (phase.equals("FM")) return "FM NM in " + (int) Math.ceil(daysToNM) + "d";
+        if (phase.equals("NM")) return "NM FM in " + (int) Math.ceil(daysToFM) + "d";
+
+        // approaching FM or NM - show whichever is closer
+        if (daysToFM <= daysToNM) {
+            return phase + " FM in " + (int) Math.ceil(daysToFM) + "d";
+        } else {
+            return phase + " NM in " + (int) Math.ceil(daysToNM) + "d";
+        }
+    }
+
+    /**
+     * Integer Julian Day Number from calendar date.
+     * No time component - day resolution only.
+     * Standard formula, no library needed.
+     */
+    private static long julianDay(int y, int m, int d) {
+        int a = (14 - m) / 12;
+        int yy = y + 4800 - a;
+        int mm = m + 12 * a - 3;
+        return d + (153 * mm + 2) / 5 + 365L * yy + yy / 4 - yy / 100 + yy / 400 - 32045;
+    }
+
+// ---------------------------------------------------------------------------
+
+    /**
+     * Returns [astroRise, nautRise, civilRise, civilSet, nautSet, astroSet]
+     * as "HH:mm" strings in HST.
+     *
+     * Solar noon is calculated from longitude only - no TimeZone object,
+     * no UTC conversion.  HST = UTC-10, so solar noon in HST minutes from
+     * midnight = 720 - 4*lon - eot + 600  (the +600 converts UTC noon to HST).
+     * lon is negative for west, e.g. -155.29 for Kilauea.
+     *
+     * Depression angles: astronomical=18, nautical=12, civil=6 degrees.
+     */
+    private static String[] calcSunTimes(String date, double lat, double lon) {
+        int y = Integer.parseInt(date.substring(0, 4));
+        int m = Integer.parseInt(date.substring(5, 7));
+        int d = Integer.parseInt(date.substring(8, 10));
+
+        // day of year
+        int doy = dayOfYear(y, m, d);
+
+        // solar declination (degrees)
+        double decl = 23.45 * Math.sin(Math.toRadians(360.0 / 365.0 * (doy - 81)));
+
+        // equation of time (minutes) - Spencer formula
+        double b   = Math.toRadians(360.0 / 365.0 * (doy - 81));
+        double eot = 9.87 * Math.sin(2*b) - 7.53 * Math.cos(b) - 1.5 * Math.sin(b);
+
+        // solar noon in minutes from HST midnight
+        // UTC solar noon = 720 - 4*lon - eot  (lon negative for west)
+        // HST = UTC - 600 minutes
+        double solarNoonHST = 720.0 - 4.0 * lon - eot - 600.0;
+
+        double[] depressions = {18.0, 12.0, 6.0};
+        String[] result = new String[6];
+
+        for (int i = 0; i < 3; i++) {
+            double cosH =
+                    (Math.cos(Math.toRadians(90.0 + depressions[i]))
+                            - Math.sin(Math.toRadians(lat)) * Math.sin(Math.toRadians(decl)))
+                            / (Math.cos(Math.toRadians(lat)) * Math.cos(Math.toRadians(decl)));
+
+            if (cosH < -1.0 || cosH > 1.0) {
+                result[i]     = "--:--";
+                result[5 - i] = "--:--";
+                continue;
+            }
+
+            double hMin    = Math.toDegrees(Math.acos(cosH)) * 4.0; // minutes
+            double riseMin = solarNoonHST - hMin;
+            double setMin  = solarNoonHST + hMin;
+
+            result[i]     = minsToHHMM(riseMin);
+            result[5 - i] = minsToHHMM(setMin);
+        }
+        return result;
+    }
+
+    /** Converts minutes-from-midnight to "HH:mm" string. Wraps at 0 and 1440. */
+    private static String minsToHHMM(double mins) {
+        int total = (int) Math.round(mins) % 1440;
+        if (total < 0) total += 1440;
+        return String.format(java.util.Locale.US, "%02d:%02d",
+                total / 60, total % 60);
+    }
+
+    /** Day of year, 1-based. Accounts for leap years. */
+    private static int dayOfYear(int y, int m, int d) {
+        int[] dim = {31,28,31,30,31,30,31,31,30,31,30,31};
+        if ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0) dim[1] = 29;
+        int doy = d;
+        for (int i = 0; i < m - 1; i++) doy += dim[i];
+        return doy;
+    }
+
+    /**
+     * Returns one of 28 moon phase characters based on age of moon at fixTime.
+     * Cycle length 29.53 days.  Index 0 = new moon, 14 = full moon.
+     * Uses Unicode 0x1F311-0x1F318 cycled - falls back to ASCII label if
+     * rendering is a concern.
+     *
+     * NOTE: returns a plain ASCII abbreviation for now pending font confirmation.
+     * Replace chars[] entries with Unicode moon emoji if device renders them.
+     */
+    private static String calcMoonPhase(long fixTime) {
+        // known new moon reference: 2000-01-06 18:14 UTC = 947182440000L ms
+        final long NEW_MOON_REF_MS = 947182440000L;
+        final double CYCLE_MS = 29.530588 * 24 * 60 * 60 * 1000.0;
+        double age = ((fixTime - NEW_MOON_REF_MS) % CYCLE_MS + CYCLE_MS) % CYCLE_MS;
+        // 28 steps
+        String[] chars = {
+                "NM", "WC1","WC2","WC3","WC4","WC5","WC6",
+                "FQ", "WG1","WG2","WG3","WG4","WG5","WG6",
+                "FM", "WG7","WG8","WG9","WGA","WGB","WGC",
+                "LQ", "WC7","WC8","WC9","WCA","WCB","WCC"
+        };
+        int idx = (int) (age / CYCLE_MS * 28) % 28;
+        return chars[idx];
+    }
+
+    /**
+     * Returns [astroRise, nautRise, civilRise, civilSet, nautSet, astroSet]
+     * as HH:mm strings in HST for the date of fixTime at the given lat/lon.
+     * Uses simple declination/hour-angle calculation - accuracy within 1-2 min.
+     */
+    private static String[] calcSunTimes(double lat, double lon, long fixTime) {
+        // depression angles in degrees: astronomical=18, nautical=12, civil=6
+        double[] depressions = {18.0, 12.0, 6.0};
+        String[] result = new String[6];
+
+        java.util.Calendar cal = java.util.Calendar.getInstance(
+                java.util.TimeZone.getTimeZone("Pacific/Honolulu"));
+        cal.setTimeInMillis(fixTime);
+        int doy = cal.get(java.util.Calendar.DAY_OF_YEAR);
+        int year = cal.get(java.util.Calendar.YEAR);
+
+        // solar declination (degrees)
+        double decl = 23.45 * Math.sin(Math.toRadians(360.0 / 365.0 * (doy - 81)));
+
+        // equation of time approximation (minutes)
+        double b = Math.toRadians(360.0 / 365.0 * (doy - 81));
+        double eot = 9.87 * Math.sin(2*b) - 7.53 * Math.cos(b) - 1.5 * Math.sin(b);
+
+        // solar noon in HST minutes from midnight
+        // HST = UTC-10, lon correction: 4 min per degree
+        double solarNoonMin = 720 - 4 * lon - eot - (-10 * 60);
+
+        java.text.SimpleDateFormat hhmm =
+                new java.text.SimpleDateFormat("HH:mm", java.util.Locale.US);
+        hhmm.setTimeZone(java.util.TimeZone.getTimeZone("Pacific/Honolulu"));
+
+        for (int i = 0; i < 3; i++) {
+            double cosH = (Math.cos(Math.toRadians(90.0 + depressions[i]))
+                    - Math.sin(Math.toRadians(lat)) * Math.sin(Math.toRadians(decl)))
+                    / (Math.cos(Math.toRadians(lat)) * Math.cos(Math.toRadians(decl)));
+            if (cosH < -1 || cosH > 1) {
+                // sun never rises/sets at this depression - polar condition
+                result[i]     = "--:--";
+                result[5 - i] = "--:--";
+                continue;
+            }
+            double hDeg = Math.toDegrees(Math.acos(cosH));
+            double riseMin = solarNoonMin - hDeg * 4;
+            double setMin  = solarNoonMin + hDeg * 4;
+            java.util.Date riseDate = new java.util.Date(
+                    cal.getTimeInMillis()
+                            - (cal.get(java.util.Calendar.HOUR_OF_DAY) * 3600000L
+                            +  cal.get(java.util.Calendar.MINUTE) * 60000L
+                            +  cal.get(java.util.Calendar.SECOND) * 1000L)
+                            + (long)(riseMin * 60000));
+            java.util.Date setDate = new java.util.Date(
+                    cal.getTimeInMillis()
+                            - (cal.get(java.util.Calendar.HOUR_OF_DAY) * 3600000L
+                            +  cal.get(java.util.Calendar.MINUTE) * 60000L
+                            +  cal.get(java.util.Calendar.SECOND) * 1000L)
+                            + (long)(setMin * 60000));
+            result[i]     = hhmm.format(riseDate);
+            result[5 - i] = hhmm.format(setDate);
+        }
+        return result;
     }
 
     /**
@@ -253,10 +913,7 @@ public class MainActivity extends Activity {
      * On subsequent launches startLoggingDefault() fires from onCreate() instead,
      * where the timing is safe.</p>
      *
-     * @todo This is currently the only path for setting the working directory.
-     *       There is no way to change it after first launch without clearing app
-     *       data.  A "change folder" option needs to be added before this app
-     *       leaves the sideload-only stage.
+     * TODO: Add a "change folder" option before leaving sideload-only stage.
      * @param requestCode the request that triggered this result.
      * @param resultCode  RESULT_OK on success, RESULT_CANCELED if user dismissed.
      * @param data        the Intent carrying the selected tree URI, or null.
@@ -268,12 +925,10 @@ public class MainActivity extends Activity {
         if (requestCode == REQUEST_TREE && resultCode == RESULT_OK && data != null) {
             Uri uri = data.getData();
 
-            // persist read+write permission across reboots
             getContentResolver().takePersistableUriPermission(uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION |
                             Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 
-            // store for LocationService and WebAppInterface to read
             getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
                     .edit()
                     .putString(PREF_TREE_URI, uri.toString())
@@ -293,27 +948,22 @@ public class MainActivity extends Activity {
              */
             //startLoggingDefault();
 
+            /**
+             * The OpenStreetMap.anDroid cache stuff
+             */
+            initOsmdroid();
+
         }
     }
 
     /**
      * Starts LocationService with the default 30-second interval and 3600-second
-     * (one hour) rollover.  Called from onCreate() on subsequent launches only,
-     * after the WebView is loaded and the JS side is ready to receive events.
+     * rollover.  Called from onCreate() on subsequent launches only.
      *
-     * <p>The interval is read from HanselPrefs "last_interval", defaulting to
-     * 30000ms.  There is no UI to change the interval - the preference key is
-     * a fossil from an earlier design that had an interval selector.  The value
-     * will always be 30000 in practice.</p>
+     * <p>Interval defaults to 30000ms.  The HanselPrefs key is a fossil from an
+     * earlier interval-selector design.  Value will always be 30000 in practice.</p>
      *
-     * <p>ContextCompat.startForegroundService() is used instead of startService()
-     * so the call is safe on SDK 26+ where background service starts are
-     * restricted.</p>
-     *
-     * @todo Remove this method entirely once BootReceiver is implemented.
-     *       BootReceiver will own the auto-start responsibility.  At that point
-     *       the JS side's startLogging() call is the only legitimate way to
-     *       start the service from this Activity.
+     * TODO: Remove once BootReceiver is implemented (v0.99).
      */
     private void startLoggingDefault() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
@@ -322,6 +972,21 @@ public class MainActivity extends Activity {
         i.putExtra("interval", interval);
         i.putExtra("rollover", 3600);
         ContextCompat.startForegroundService(this, i);
+    }
+
+
+    private static boolean verifyCacheWritable(java.io.File cacheDir) {
+        try {
+            if (!cacheDir.exists()) cacheDir.mkdirs();
+            java.io.File test = new java.io.File(cacheDir, ".writetest");
+            test.createNewFile();
+            test.delete();
+            return true;
+        } catch (Exception e) {
+            android.util.Log.e("Hansel", "cache not writable: "
+                    + e.getMessage());
+            return false;
+        }
     }
 
 }
