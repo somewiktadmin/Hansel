@@ -220,7 +220,7 @@ public class MainActivity extends Activity {
         // [HMM] - Halemaumau
         btnHMM.setOnClickListener(v -> {
             mapView.getController().setZoom(14);
-            mapView.getController().animateTo(new GeoPoint(19.4095, -155.2886 ));
+            mapView.getController().animateTo(new GeoPoint(19.411, -155.269 ));
         });
 
         // [+] and [-] step zoom by 1
@@ -262,6 +262,7 @@ public class MainActivity extends Activity {
                 if (!replayInProgress) {
                     liveFollowMode = false;
                     replayPausedFloatie.setVisibility(View.VISIBLE);
+                    replayPausedFloatie.setVisibility(View.INVISIBLE);
                     webView.evaluateJavascript("replayPause()", null);
                 }
                 java.text.SimpleDateFormat sdf =

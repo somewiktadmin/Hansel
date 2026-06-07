@@ -37,7 +37,7 @@
             android:padding="4dp"
             android:layout_marginLeft="60dp"
             android:layout_marginRight="60dp"
-            android:text="Hansel" />
+            android:text="Hansel v0.986" />
 
         <!-- REPLAY PAUSED floatie - top center, hidden until user pans during replay -->
         <TextView
@@ -70,18 +70,18 @@
             <!-- [ME] - snap to current GPS position -->
             <Button
                 android:id="@+id/btnMe"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:text="ME"
                 android:textSize="8sp"
                 android:padding="0dp"
                 android:layout_marginBottom="4dp" />
 
-            <!-- [HMM] - Near Halemaumau - center-ish of crater 19.4065, -155.2836 -->
+            <!-- [HMM] - Near Halemaumau - center-ish of crater 19.411, -155.269 -->
             <Button
                 android:id="@+id/btnHMM"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:text="HMM"
                 android:textSize="8sp"
                 android:padding="0dp"
@@ -90,8 +90,8 @@
             <!-- [+] zoom in -->
             <Button
                 android:id="@+id/btnZoomIn"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:text="+"
                 android:textSize="8sp"
                 android:padding="0dp"
@@ -100,8 +100,8 @@
             <!-- Vertical zoom slider - thumb travels bottom to top = low to high zoom - - >
             <SeekBar
                 android:id="@+id/zoomSlider"
-                android:layout_width="32dp"
-                android:layout_height="120dp"
+                android:layout_width="48dp"
+                android:layout_height="100dp"
                 android:max="19"
                 android:progress="12"
                 android:layout_marginTop="8dp"
@@ -111,8 +111,8 @@
             <!-- [-] zoom out -->
             <Button
                 android:id="@+id/btnZoomOut"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:text="-"
                 android:textSize="8sp"
                 android:padding="0dp" />

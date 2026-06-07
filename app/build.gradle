@@ -1,4 +1,4 @@
-// Hansel - GPS breadcrumb logger v0.985
+// Hansel - GPS breadcrumb logger v0.986
 // Copyright (C) 2026 GrimmsTales
 // GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
 //
@@ -28,8 +28,8 @@ android {
         applicationId "com.hansel.app"
         minSdk 21
         targetSdk 34
-        versionCode 17 //must be integer
-        versionName "v0.985" // For Hansel-v0.985 Note: VERSIONCODE must be an integer (84GB later...) 5/11/2026
+        versionCode 18 //must be integer
+        versionName "v0.986" // For Hansel-v0.986 Note: VERSIONCODE must be an integer (84GB later...) 5/11/2026
 
         // TODO: migrate to androidx.test.runner.AndroidJUnitRunner -
         // android.support.test.runner is the old support library and is
