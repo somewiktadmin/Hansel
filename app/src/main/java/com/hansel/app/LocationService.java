@@ -140,7 +140,7 @@ public class LocationService extends Service {
      *       startLoggingDefault() - it will always be 30000 and pretending
      *       otherwise is misleading.
      */
-    int interval = 30000;
+    int interval = 1000;
 
     /**
      * Minimum GPS request interval in milliseconds.  500ms was tried and
