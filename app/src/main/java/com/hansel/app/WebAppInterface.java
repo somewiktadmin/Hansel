@@ -123,7 +123,7 @@ public class WebAppInterface {
      *
      * <p>The interval is persisted to HanselPrefs as last_interval for
      * startLoggingDefault() to read on the next launch.  In practice this
-     * will always be 30000.</p>
+     * will always be 30_000.</p>
      *
      * @param interval logging interval in milliseconds.
      * @param rollover file rotation interval in seconds.

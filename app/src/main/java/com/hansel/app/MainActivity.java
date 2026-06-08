@@ -961,14 +961,14 @@ public class MainActivity extends Activity {
      * Starts LocationService with the default 30-second interval and 3600-second
      * rollover.  Called from onCreate() on subsequent launches only.
      *
-     * <p>Interval defaults to 30000ms.  The HanselPrefs key is a fossil from an
-     * earlier interval-selector design.  Value will always be 30000 in practice.</p>
+     * <p>Interval defaults to 30_000ms.  The HanselPrefs key is a fossil from an
+     * earlier interval-selector design.  Value will always be 30_000 in practice.</p>
      *
      * TODO: Remove once BootReceiver is implemented (v0.99).
      */
     private void startLoggingDefault() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        int interval = prefs.getInt("last_interval", 30000);
+        int interval = prefs.getInt("last_interval", 1000); //30_000
         Intent i = new Intent(this, LocationService.class);
         i.putExtra("interval", interval);
         i.putExtra("rollover", 3600);

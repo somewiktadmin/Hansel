@@ -127,17 +127,17 @@ public class LocationService extends Service {
     DocumentFile currentFile;
 
     /**
-     * Hansel logging interval in milliseconds.  Currently fixed at 30000.
+     * Hansel logging interval in milliseconds.  Currently fixed at 30_000.
      * This value is also passed to FusedLocationProvider as a hint, but
      * the logging cadence is what actually matters.
      *
-     * <p>This was once a user-selectable setting.  Values below 30000 cause
-     * phone overheating and duplicate timestamps.  Values above 30000 degrade
+     * <p>This was once a user-selectable setting.  Values below 30_000 cause
+     * duplicate timestamps.  Values above 30_000 degrade
      * audio/video sync and file rotation timing.  30 seconds is not a default,
      * it is the only working value at this stage of the project.</p>
      *
      * TODO: Remove the last_interval SharedPreference read in
-     *       startLoggingDefault() - it will always be 30000 and pretending
+     *       startLoggingDefault() - it will always be 30_000 and pretending
      *       otherwise is misleading.
      */
     int interval = 1000;
@@ -1157,7 +1157,7 @@ public class LocationService extends Service {
      * <p>START_STICKY tells Android to restart the service automatically
      * if it is killed by the system.  The Intent will be null on restart,
      * which is handled by the null check on intent.getIntExtra()
-     * defaulting to 30000.</p>
+     * defaulting to 30_000.</p>
      *
      * @param intent  the starting Intent, or null if restarted by the system.
      * @param flags   delivery flags, not used.
@@ -1174,7 +1174,7 @@ public class LocationService extends Service {
             } else {
                 startForeground(1, NotificationHelper.build(this));
             }
-            interval = 30000 ; //intent.getIntExtra("interval", 30000);
+            interval = 1000 ; //intent.getIntExtra("interval", 30_000);
             consolidateOldFiles();
             scheduleTopOfHourRotation();
             scheduleNoon();
