@@ -968,7 +968,7 @@ public class MainActivity extends Activity {
      */
     private void startLoggingDefault() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        int interval = prefs.getInt("last_interval", 1000); //30_000
+        int interval = prefs.getInt("last_interval", 30000); //30_000 30000
         Intent i = new Intent(this, LocationService.class);
         i.putExtra("interval", interval);
         i.putExtra("rollover", 3600);
