@@ -140,7 +140,7 @@ public class LocationService extends Service {
      *       startLoggingDefault() - it will always be 30_000 and pretending
      *       otherwise is misleading.
      */
-    int interval = 30000; //30000 30_000
+    int interval = 1000; //30000 30_000
 
     /**
      * Minimum GPS request interval in milliseconds.  500ms was tried and
@@ -1174,7 +1174,7 @@ public class LocationService extends Service {
             } else {
                 startForeground(1, NotificationHelper.build(this));
             }
-            interval = 30000 ; //intent.getIntExtra("interval", 30_000); //30000 30_000
+            interval = 1000 ; //intent.getIntExtra("interval", 30_000); //30000 30_000
             consolidateOldFiles();
             scheduleTopOfHourRotation();
             scheduleNoon();
