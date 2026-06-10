@@ -35,8 +35,6 @@ import org.osmdroid.views.overlay.TilesOverlay;
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider;
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 
-import java.util.List;
-
 /**
  * Hansel v0.986 main activity.
  *
@@ -80,10 +78,10 @@ public class MainActivity extends Activity {
     public static TextView skyBarBox;
 
     /** Cached center overlay data - updated on pan/zoom/replay. */
-    private static double centerLat  = 0;
-    private static double centerLon  = 0;
-    private static double centerAlt  = 0;
-    private static int    centerZoom = 0;
+    private static double zoomerLat  = 0;
+    private static double zoomerLon  = 0;
+    private static double zoomerAlt  = 0;
+    private static int    zoomerZoom = 0;
 
     /** Cached status overlay data - updated 1Hz from handleLocation(). */
     private static String statusLine1 = "";
@@ -328,10 +326,10 @@ public class MainActivity extends Activity {
                     replayPausedFloatie.setVisibility(View.VISIBLE);
                 }
                 IGeoPoint gs = mapView.getMapCenter();
-                centerZoom = (int) Math.round(mapView.getZoomLevelDouble());
-                centerLat  = gs.getLatitude();
-                centerLon  = gs.getLongitude();
-                centerAlt  = 0;
+                zoomerZoom = (int) Math.round(mapView.getZoomLevelDouble());
+                zoomerLat  = gs.getLatitude();
+                zoomerLon  = gs.getLongitude();
+                zoomerAlt  = 0;
                 rebuildGpsInfoOverlay();
                 return false;
             }
@@ -346,10 +344,10 @@ public class MainActivity extends Activity {
                     replayPausedFloatie.setVisibility(View.VISIBLE);
                 }
                 IGeoPoint gs = mapView.getMapCenter();
-                centerZoom = (int) Math.round(mapView.getZoomLevelDouble());
-                centerLat  = gs.getLatitude();
-                centerLon  = gs.getLongitude();
-                centerAlt  = 0;
+                zoomerZoom = (int) Math.round(mapView.getZoomLevelDouble());
+                zoomerLat  = gs.getLatitude();
+                zoomerLon  = gs.getLongitude();
+                zoomerAlt  = 0;
                 rebuildGpsInfoOverlay();
                 return false;
             }
@@ -477,19 +475,17 @@ public class MainActivity extends Activity {
 
             replayHeadMarker.setPosition(pt);
 
-            if (replayFollowMode && !gap && (mapView.getProjection() != null) ) {
-                mapView.post(() -> mapView.getController().animateTo(pt));
+            if (replayFollowMode && !gap) {
+                mapView.getController().animateTo(pt);
             }
 
             mapView.invalidate();
-            centerLat  = lat;
-            centerLon  = lon;
-            centerAlt  = d.optDouble("alt", 0);
-            centerZoom = (int) Math.round(mapView.getZoomLevelDouble());
-            updateGpsInfoOverlay(d.getString("t"), lat, lon,
-                    d.optDouble("alt",  0),
-                    d.optDouble("spd",  0),
-                    d.optDouble("crs",  0));
+            zoomerLat  = lat;
+            zoomerLon  = lon;
+            zoomerAlt  = d.optDouble("alt", 0);
+            zoomerZoom = (int) Math.round(mapView.getZoomLevelDouble());
+            rebuildGpsInfoOverlay();
+            updateSkyOverlay(d.getString("t").substring(0, 10));
 
         } catch (Exception e) {
             android.util.Log.e("Hansel",
@@ -1012,10 +1008,10 @@ public class MainActivity extends Activity {
      */
     public static void updateCenterOverlay(double lat, double lon,
                                            double altFt, int zoom) {
-        centerLat  = lat;
-        centerLon  = lon;
-        centerAlt  = altFt;
-        centerZoom = zoom;
+        zoomerLat  = lat;
+        zoomerLon  = lon;
+        zoomerAlt  = altFt;
+        zoomerZoom = zoom;
         rebuildGpsInfoOverlay();
     }
 
@@ -1163,9 +1159,12 @@ public class MainActivity extends Activity {
      * In replay mode: accumulates up to (overlayLines - 5) entries,
      * newest at bottom, oldest dropped from top.
      *
+     * Called from handleLocation() (live mode) and handleReplayPoint() (replay).
+     *
      * @param date date string yyyy-MM-dd HST.
      */
     public static void updateSkyOverlay(String date) {
+        if (skyBarBox == null) return;
         String bar  = calcSkyBar(date);
         String day  = date.substring(8, 10);
         String line = day + "|" + bar;
@@ -1182,32 +1181,36 @@ public class MainActivity extends Activity {
                 if (skyBarLines.size() > maxLines) skyBarLines.removeFirst();
             }
         }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(SKY_HEADER);
+        for (String l : skyBarLines) {
+            sb.append("\n").append(l);
+        }
+        final String skyText = sb.toString();
+        skyBarBox.post(() -> skyBarBox.setText(skyText));
     }
 
     /**
-     * Rebuilds and sets gpsInfoOverlay text from cached fields.
-     * Also rebuilds skyBarBox text from skyBarLines.
+     * Rebuilds and sets gpsInfoOverlay text from cached zoomer fields.
      * Called by updateGpsInfoOverlay(), updateCenterOverlay(), and
      * the MapListener on scroll/zoom.
+     * skyBarBox is updated separately by updateSkyOverlay().
      *
      * gpsInfoOverlay layout (zero-based):
      *   0: "Hansel v0.987" left, zoomerLine right-justified with monospace spaces
      *   1: mostCurrentGPS (timestamp first, lat, lon, alt, spd)
-     *
-     * skyBarBox layout:
-     *   0: header "   12    16    20    00    04    08    12"
-     *   1+: DD|<36-char sky bar>, newest at bottom, grows upward during replay
      */
     public static void rebuildGpsInfoOverlay() {
         if (gpsInfoOverlay == null) return;
 
         // zoomerLine: lat, lon, alt, zoom - right-justified on line 0
-        String altStr = (centerAlt > 0)
-                ? String.format(java.util.Locale.US, "%dft", (int) centerAlt)
+        String altStr = (zoomerAlt > 0)
+                ? String.format(java.util.Locale.US, "%dft", (int) zoomerAlt)
                 : "alt:?";
         String zoomer = String.format(java.util.Locale.US,
                 "%.6f %.6f %s Z:%d",
-                centerLat, centerLon, altStr, centerZoom);
+                zoomerLat, zoomerLon, altStr, zoomerZoom);
         String label = "Hansel v0.987";
         // pad between label and zoomer to fill overlayChars
         int spaces = Math.max(1, overlayChars - label.length() - zoomer.length());
@@ -1223,6 +1226,7 @@ public class MainActivity extends Activity {
             gpsInfoOverlay.setTextColor(color);
         });
 
+        /*
         // rebuild skyBarBox
         if (skyBarBox == null) return;
         List<String> snapshot = new java.util.ArrayList<>(skyBarLines);
@@ -1233,6 +1237,8 @@ public class MainActivity extends Activity {
         }
         final String skyText = sb.toString();
         skyBarBox.post(() -> skyBarBox.setText(skyText));
+         */
+
     }
 
 }
