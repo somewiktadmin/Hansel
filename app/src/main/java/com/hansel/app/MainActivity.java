@@ -35,6 +35,8 @@ import org.osmdroid.views.overlay.TilesOverlay;
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider;
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 
+import java.util.List;
+
 /**
  * Hansel v0.986 main activity.
  *
@@ -75,6 +77,7 @@ public class MainActivity extends Activity {
     //private CompassOverlay compassOverlay;
 
     public static TextView gpsInfoOverlay;
+    public static TextView skyBarBox;
 
     /** Cached center overlay data - updated on pan/zoom/replay. */
     private static double centerLat  = 0;
@@ -84,13 +87,14 @@ public class MainActivity extends Activity {
 
     /** Cached status overlay data - updated 1Hz from handleLocation(). */
     private static String statusLine1 = "";
-    private static String statusLine2 = "";
 
-    /** Sky bar header line - constant, computed once. */
-    private static final String SKY_HEADER = "12    16    20    00    04    08    12";
+    /** Sky bar header line - constant, 3 leading spaces align DD| prefix. */
+    private static final String SKY_HEADER = "   12    16    20    00    04    08    12";
 
-    /** Number of usable lines in gpsInfoOverlay - computed after layout. */
+    /** Usable line count in gpsInfoOverlay - measured after layout. */
     private static int overlayLines = 21;
+    /** Usable character width of gpsInfoOverlay - measured after layout. */
+    private static int overlayChars = 40;
 
     private static boolean replayFollowMode = true;
 
@@ -226,7 +230,14 @@ public class MainActivity extends Activity {
             if (gpsInfoOverlay.getLineHeight() > 0) {
                 overlayLines = gpsInfoOverlay.getHeight() / gpsInfoOverlay.getLineHeight();
             }
+            if (gpsInfoOverlay.getPaint() != null && gpsInfoOverlay.getWidth() > 0) {
+                float charW = gpsInfoOverlay.getPaint().measureText("M");
+                if (charW > 0) overlayChars = (int)(gpsInfoOverlay.getWidth() / charW);
+            }
         });
+
+        skyBarBox = findViewById(R.id.skyBarBox);
+        skyBarBox.setShadowLayer(2f, 1f, 1f, 0xFF000000);
 
         Button btnMe      = findViewById(R.id.btnMe);
         Button btnHMM     = findViewById(R.id.btnHMM);
@@ -321,7 +332,7 @@ public class MainActivity extends Activity {
                 centerLat  = gs.getLatitude();
                 centerLon  = gs.getLongitude();
                 centerAlt  = 0;
-                rebuildgpsInfoOverlay();
+                rebuildGpsInfoOverlay();
                 return false;
             }
 
@@ -339,7 +350,7 @@ public class MainActivity extends Activity {
                 centerLat  = gs.getLatitude();
                 centerLon  = gs.getLongitude();
                 centerAlt  = 0;
-                rebuildgpsInfoOverlay();
+                rebuildGpsInfoOverlay();
                 return false;
             }
         });
@@ -466,8 +477,8 @@ public class MainActivity extends Activity {
 
             replayHeadMarker.setPosition(pt);
 
-            if (replayFollowMode && !gap) {
-                mapView.getController().animateTo(pt);
+            if (replayFollowMode && !gap && (mapView.getProjection() != null) ) {
+                mapView.post(() -> mapView.getController().animateTo(pt));
             }
 
             mapView.invalidate();
@@ -475,7 +486,7 @@ public class MainActivity extends Activity {
             centerLon  = lon;
             centerAlt  = d.optDouble("alt", 0);
             centerZoom = (int) Math.round(mapView.getZoomLevelDouble());
-            updategpsInfoOverlay(d.getString("t"), lat, lon,
+            updateGpsInfoOverlay(d.getString("t"), lat, lon,
                     d.optDouble("alt",  0),
                     d.optDouble("spd",  0),
                     d.optDouble("crs",  0));
@@ -578,31 +589,22 @@ public class MainActivity extends Activity {
      * @param spdMph  speed in MPH.
      * @param crsDeg  course in degrees from north (not shown - arrow shows it graphically).
      */
-    public static void updategpsInfoOverlay(String fixTime, double lat, double lon,
-                                        double altFt, double spdMph, double crsDeg) {
+    public static void updateGpsInfoOverlay(String fixTime, double lat, double lon,
+                                            double altFt, double spdMph, double crsDeg) {
         if (gpsInfoOverlay == null) return;
 
         // translation of the javascript timestamp format
         String ts = fixTime.replace("_", " ")
                 .replaceAll("-(\\d{2})-(\\d{2})$", ":$1:$2");
 
-        String moon = getMoonPhase(ts, lat, lon);
-        String[] sun = getSunTimes(ts, lat, lon);
-
-        // line 1: timestamp, position, altitude, speed
+        // mostCurrentGPS line: timestamp first, lat, lon, alt, spd
         // For example: 2026-06-08 18:36:21  19.411411 -155.269269  1242ft  0 MPH
         statusLine1 = String.format(java.util.Locale.US,
                 "%s  %.6f %.6f  %dft  %d MPH",
                 ts, lat, lon, (int) altFt, (int) spdMph);
 
-        // line 2: moon phase and sun times
-        // For example: Waxing Gibbous, FM in 4d  Rise 05:20 Set 19:25
-        statusLine2 = String.format(java.util.Locale.US,
-                "%s  Rise %s Set %s",
-                moon, sun[2], sun[3]);
-
         updateSkyOverlay(fixTime.substring(0, 10));
-        rebuildgpsInfoOverlay();
+        rebuildGpsInfoOverlay();
     }
 
 // ====
@@ -1014,7 +1016,7 @@ public class MainActivity extends Activity {
         centerLon  = lon;
         centerAlt  = altFt;
         centerZoom = zoom;
-        rebuildgpsInfoOverlay();
+        rebuildGpsInfoOverlay();
     }
 
     /**
@@ -1164,11 +1166,7 @@ public class MainActivity extends Activity {
      * @param date date string yyyy-MM-dd HST.
      */
     public static void updateSkyOverlay(String date) {
-        String[] months = {"Jan","Feb","Mar","Apr","May","Jun",
-                "Jul","Aug","Sep","Oct","Nov","Dec"};
-        int moIdx = Integer.parseInt(date.substring(5, 7)) - 1;
         String bar  = calcSkyBar(date);
-        // prefix is just the two-digit day - date is always yyyy-MM-dd
         String day  = date.substring(8, 10);
         String line = day + "|" + bar;
 
@@ -1187,54 +1185,54 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Rebuilds and sets the full gpsInfoOverlay text from cached fields.
-     * Called by updategpsInfoOverlay(), updateCenterOverlay(), and the
-     * MapListener on scroll/zoom.
+     * Rebuilds and sets gpsInfoOverlay text from cached fields.
+     * Also rebuilds skyBarBox text from skyBarLines.
+     * Called by updateGpsInfoOverlay(), updateCenterOverlay(), and
+     * the MapListener on scroll/zoom.
      *
-     * Layout (line numbers are zero-based):
-     *   0:  Hansel v0.987  centerLat, centerLon, centerAlt, centerZoom
-     *   1:  statusLine1 (timestamp, lat, lon, alt, spd)
-     *   2:  statusLine2 (moon phase, sun rise/set)
-     *   3:  (blank)
-     *   ... (blank lines, sky bar grows upward into here during replay)
-     *   n-2: 12    16    20    00    04    08    12  (header)
-     *   n-1: DD|<36-char sky bar>  (newest, or only live line)
+     * gpsInfoOverlay layout (zero-based):
+     *   0: "Hansel v0.987" left, zoomerLine right-justified with monospace spaces
+     *   1: mostCurrentGPS (timestamp first, lat, lon, alt, spd)
+     *
+     * skyBarBox layout:
+     *   0: header "   12    16    20    00    04    08    12"
+     *   1+: DD|<36-char sky bar>, newest at bottom, grows upward during replay
      */
-    public static void rebuildgpsInfoOverlay() {
+    public static void rebuildGpsInfoOverlay() {
         if (gpsInfoOverlay == null) return;
 
+        // zoomerLine: lat, lon, alt, zoom - right-justified on line 0
         String altStr = (centerAlt > 0)
                 ? String.format(java.util.Locale.US, "%dft", (int) centerAlt)
                 : "alt:?";
-        String line0 = String.format(java.util.Locale.US,
-                "Hansel v0.987  %.6f %.6f  %s  Z:%d",
+        String zoomer = String.format(java.util.Locale.US,
+                "%.6f %.6f %s Z:%d",
                 centerLat, centerLon, altStr, centerZoom);
+        String label = "Hansel v0.987";
+        // pad between label and zoomer to fill overlayChars
+        int spaces = Math.max(1, overlayChars - label.length() - zoomer.length());
+        StringBuilder pad = new StringBuilder();
+        for (int i = 0; i < spaces; i++) pad.append(' ');
+        String line0 = label + pad + zoomer;
 
-        StringBuilder sb = new StringBuilder();
-        sb.append(line0).append("\n");
-        sb.append(statusLine1).append("\n");
-        sb.append(statusLine2).append("\n");
-        sb.append("\n");
-
-        // blank lines to push sky bar to bottom
-        int skyCount  = skyBarLines.size();
-        int fixedRows = 4 + 1 + skyCount; // header + 3 status + 1 blank + sky lines
-        int blanks    = Math.max(0, overlayLines - fixedRows);
-        for (int i = 0; i < blanks; i++) sb.append("\n");
-
-        // sky bar header and lines
-        sb.append(SKY_HEADER).append("\n");
-        for (int i = 0; i < skyBarLines.size(); i++) {
-            sb.append(skyBarLines.get(i));
-            if (i < skyBarLines.size() - 1) sb.append("\n");
-        }
+        String gpsText = line0 + "\n" + statusLine1;
 
         int color = liveFollowMode ? Color.GREEN : Color.GRAY;
-        final String text = sb.toString();
         gpsInfoOverlay.post(() -> {
-            gpsInfoOverlay.setText(text);
+            gpsInfoOverlay.setText(gpsText);
             gpsInfoOverlay.setTextColor(color);
         });
+
+        // rebuild skyBarBox
+        if (skyBarBox == null) return;
+        List<String> snapshot = new java.util.ArrayList<>(skyBarLines);
+        StringBuilder sb = new StringBuilder();
+        sb.append(SKY_HEADER);
+        for (String l : snapshot) {
+            sb.append("\n").append(l);
+        }
+        final String skyText = sb.toString();
+        skyBarBox.post(() -> skyBarBox.setText(skyText));
     }
 
 }

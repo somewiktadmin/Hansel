@@ -969,7 +969,7 @@ public class LocationService extends Service {
             sendToUI(obj.toString());
 
             if (!MainActivity.replayInProgress)
-                MainActivity.updategpsInfoOverlay( t, lat, lon, altFt, lastSpd, lastCrs );
+                MainActivity.updateGpsInfoOverlay( t, lat, lon, altFt, lastSpd, lastCrs );
             else
                 MainActivity.updateCenterOverlay( lat, lon, altFt, 14 );
 
