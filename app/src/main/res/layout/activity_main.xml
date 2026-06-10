@@ -40,7 +40,7 @@
             android:text="Hansel v0.987" />
 
         <!-- skyBarBox - sky timeline, below gpsInfoOverlay.
-             Line 0: 12    16    20    00    04    08    12  (header)
+               Line 0:    12    16    20    00    04    08    12  (header)
              Lines 1+: DD|<36-char sky bar>, grows upward during replay.
              android:background="#4F000000"   for layout testing only
         -->

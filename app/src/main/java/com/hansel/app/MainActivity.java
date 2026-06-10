@@ -101,7 +101,7 @@ public class MainActivity extends Activity {
     private static String cachedMoon   = "";
     private static String[] cachedSun  = new String[6];
 
-    private static boolean updatingMap = false;
+    public static boolean updatingMap = false;
     public static boolean replayInProgress = false;
 
     private static org.osmdroid.views.overlay.Polyline replayPointsOverlay;
@@ -118,7 +118,8 @@ public class MainActivity extends Activity {
     private static final int    REPLAY_LINE_COLOR = Color.argb(127, 127, 100, 40);
     private static final float  REPLAY_LINE_WIDTH = 4f;
     private static final double GAP_METERS        = 1609.34;
-    private Button btnMeRef;
+    //public Button btnMeRef;
+    public TextView liveUpdatesPausedFloatie;
 
 
     /**
@@ -219,7 +220,7 @@ public class MainActivity extends Activity {
                 .setLoadingLineColor(Color.argb(255, 0, 255, 0));
 
         replayPausedFloatie = findViewById(R.id.replayPausedFloatie);
-        TextView liveUpdatesPausedFloatie =
+        liveUpdatesPausedFloatie =
                 findViewById(R.id.liveUpdatesPausedFloatie);
 
         gpsInfoOverlay = findViewById(R.id.gpsInfoOverlay);
@@ -241,7 +242,7 @@ public class MainActivity extends Activity {
         Button btnHMM     = findViewById(R.id.btnHMM);
         Button btnZoomIn  = findViewById(R.id.btnZoomIn);
         Button btnZoomOut = findViewById(R.id.btnZoomOut);
-        btnMeRef = btnMe;
+        //btnMeRef = btnMe;
 
         // resumeLive: re-enable live map following.  Does NOT touch log files,
         // does NOT call JS stop() - that caused log rotation on every pan.
@@ -318,7 +319,7 @@ public class MainActivity extends Activity {
             @Override
             public boolean onScroll(ScrollEvent event) {
                 liveFollowMode = false;
-                if (btnMeRef != null) btnMeRef.setTextColor(Color.GRAY);
+                if (btnMe != null) btnMe.setTextColor(Color.GRAY);
                 // [HISTORY REPLAYING] only shown during replay, not during live pan
                 if (replayInProgress) {
                     replayFollowMode = false;
@@ -337,7 +338,7 @@ public class MainActivity extends Activity {
             @Override
             public boolean onZoom(ZoomEvent event) {
                 liveFollowMode = false;
-                if (btnMeRef != null) btnMeRef.setTextColor(Color.GRAY);
+                if (btnMe != null) btnMe.setTextColor(Color.GRAY);
                 if (replayInProgress) {
                     replayFollowMode = false;
                     liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
