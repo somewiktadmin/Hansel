@@ -968,7 +968,10 @@ public class LocationService extends Service {
 
             sendToUI(obj.toString());
 
-            MainActivity.updateAllOverlay( t, lat, lon, altFt, lastSpd, lastCrs );
+            if (!MainActivity.replayInProgress)
+                MainActivity.updategpsInfoOverlay( t, lat, lon, altFt, lastSpd, lastCrs );
+            else
+                MainActivity.updateCenterOverlay( lat, lon, altFt, 14 );
 
             lastLocation = loc;
 

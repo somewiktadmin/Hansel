@@ -74,7 +74,7 @@ public class MainActivity extends Activity {
     private MyLocationNewOverlay locationOverlay;
     //private CompassOverlay compassOverlay;
 
-    public static TextView allOverlay;
+    public static TextView gpsInfoOverlay;
 
     /** Cached center overlay data - updated on pan/zoom/replay. */
     private static double centerLat  = 0;
@@ -89,7 +89,7 @@ public class MainActivity extends Activity {
     /** Sky bar header line - constant, computed once. */
     private static final String SKY_HEADER = "12    16    20    00    04    08    12";
 
-    /** Number of usable lines in allOverlay - computed after layout. */
+    /** Number of usable lines in gpsInfoOverlay - computed after layout. */
     private static int overlayLines = 21;
 
     private static boolean replayFollowMode = true;
@@ -100,7 +100,7 @@ public class MainActivity extends Activity {
     private static String[] cachedSun  = new String[6];
 
     private static boolean updatingMap = false;
-    private static boolean replayInProgress = false;
+    public static boolean replayInProgress = false;
 
     private static org.osmdroid.views.overlay.Polyline replayPointsOverlay;
     private static org.osmdroid.views.overlay.Marker   replayHeadMarker;
@@ -220,11 +220,11 @@ public class MainActivity extends Activity {
         TextView liveUpdatesPausedFloatie =
                 findViewById(R.id.liveUpdatesPausedFloatie);
 
-        allOverlay = findViewById(R.id.allOverlay);
-        allOverlay.setShadowLayer(2f, 1f, 1f, 0xFF000000);
-        allOverlay.post(() -> {
-            if (allOverlay.getLineHeight() > 0) {
-                overlayLines = allOverlay.getHeight() / allOverlay.getLineHeight();
+        gpsInfoOverlay = findViewById(R.id.gpsInfoOverlay);
+        gpsInfoOverlay.setShadowLayer(2f, 1f, 1f, 0xFF000000);
+        gpsInfoOverlay.post(() -> {
+            if (gpsInfoOverlay.getLineHeight() > 0) {
+                overlayLines = gpsInfoOverlay.getHeight() / gpsInfoOverlay.getLineHeight();
             }
         });
 
@@ -255,8 +255,8 @@ public class MainActivity extends Activity {
         // [ME] - resume live follow, stop replay, snap to phone position
         btnMe.setOnClickListener(v -> resumeLive.run());
 
-        // allOverlay tap - same as [ME]
-        allOverlay.setOnClickListener(v -> resumeLive.run());
+        // gpsInfoOverlay tap - same as [ME]
+        gpsInfoOverlay.setOnClickListener(v -> resumeLive.run());
 
         // [HISTORY REPLAYING] tap - same as [ME]
         liveUpdatesPausedFloatie.setOnClickListener(v -> resumeLive.run());
@@ -321,7 +321,7 @@ public class MainActivity extends Activity {
                 centerLat  = gs.getLatitude();
                 centerLon  = gs.getLongitude();
                 centerAlt  = 0;
-                rebuildAllOverlay();
+                rebuildgpsInfoOverlay();
                 return false;
             }
 
@@ -339,7 +339,7 @@ public class MainActivity extends Activity {
                 centerLat  = gs.getLatitude();
                 centerLon  = gs.getLongitude();
                 centerAlt  = 0;
-                rebuildAllOverlay();
+                rebuildgpsInfoOverlay();
                 return false;
             }
         });
@@ -475,7 +475,7 @@ public class MainActivity extends Activity {
             centerLon  = lon;
             centerAlt  = d.optDouble("alt", 0);
             centerZoom = (int) Math.round(mapView.getZoomLevelDouble());
-            updateAllOverlay(d.getString("t"), lat, lon,
+            updategpsInfoOverlay(d.getString("t"), lat, lon,
                     d.optDouble("alt",  0),
                     d.optDouble("spd",  0),
                     d.optDouble("crs",  0));
@@ -578,9 +578,9 @@ public class MainActivity extends Activity {
      * @param spdMph  speed in MPH.
      * @param crsDeg  course in degrees from north (not shown - arrow shows it graphically).
      */
-    public static void updateAllOverlay(String fixTime, double lat, double lon,
+    public static void updategpsInfoOverlay(String fixTime, double lat, double lon,
                                         double altFt, double spdMph, double crsDeg) {
-        if (allOverlay == null) return;
+        if (gpsInfoOverlay == null) return;
 
         // translation of the javascript timestamp format
         String ts = fixTime.replace("_", " ")
@@ -602,7 +602,7 @@ public class MainActivity extends Activity {
                 moon, sun[2], sun[3]);
 
         updateSkyOverlay(fixTime.substring(0, 10));
-        rebuildAllOverlay();
+        rebuildgpsInfoOverlay();
     }
 
 // ====
@@ -1014,7 +1014,7 @@ public class MainActivity extends Activity {
         centerLon  = lon;
         centerAlt  = altFt;
         centerZoom = zoom;
-        rebuildAllOverlay();
+        rebuildgpsInfoOverlay();
     }
 
     /**
@@ -1187,8 +1187,8 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Rebuilds and sets the full allOverlay text from cached fields.
-     * Called by updateAllOverlay(), updateCenterOverlay(), and the
+     * Rebuilds and sets the full gpsInfoOverlay text from cached fields.
+     * Called by updategpsInfoOverlay(), updateCenterOverlay(), and the
      * MapListener on scroll/zoom.
      *
      * Layout (line numbers are zero-based):
@@ -1200,8 +1200,8 @@ public class MainActivity extends Activity {
      *   n-2: 12    16    20    00    04    08    12  (header)
      *   n-1: DD|<36-char sky bar>  (newest, or only live line)
      */
-    public static void rebuildAllOverlay() {
-        if (allOverlay == null) return;
+    public static void rebuildgpsInfoOverlay() {
+        if (gpsInfoOverlay == null) return;
 
         String altStr = (centerAlt > 0)
                 ? String.format(java.util.Locale.US, "%dft", (int) centerAlt)
@@ -1231,9 +1231,9 @@ public class MainActivity extends Activity {
 
         int color = liveFollowMode ? Color.GREEN : Color.GRAY;
         final String text = sb.toString();
-        allOverlay.post(() -> {
-            allOverlay.setText(text);
-            allOverlay.setTextColor(color);
+        gpsInfoOverlay.post(() -> {
+            gpsInfoOverlay.setText(text);
+            gpsInfoOverlay.setTextColor(color);
         });
     }
 

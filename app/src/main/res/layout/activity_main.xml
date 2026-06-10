@@ -20,25 +20,44 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
-        <!--
-            allOverlay.setShadowLayer(2f, 1f, 1f, 0xFF000000);
-            Black shadow, 2px blur, 1px offset.  Makes text readable
-             on any background with zero overlay shading.
+        <!-- gpsInfoOverlay - GPS info lines, below paused floaties.
+                     Line 0: Hansel v0.987 [spaces] zoomerLine (right justified)
+                     Line 1: mostCurrentGPS (timestamp first, lat, lon, alt, spd)
         -->
         <TextView
-            android:id="@+id/allOverlay"
-            android:layout_width="wrap_content"
+            android:id="@+id/gpsInfoOverlay"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="top|start"
             android:layout_marginTop="30dp"
             android:layout_marginStart="6dp"
+            android:layout_marginBottom="0dp"
+            android:layout_marginEnd="6dp"
+            android:textColor="#FF00FF00"
+            android:textSize="9sp"
+            android:fontFamily="monospace"
+            android:textStyle="bold"
+            android:text="Hansel v0.987" />
+
+        <!-- skyBarBox - sky timeline, below gpsInfoOverlay.
+             Line 0: 12    16    20    00    04    08    12  (header)
+             Lines 1+: DD|<36-char sky bar>, grows upward during replay.
+             android:background="#4F000000"   for layout testing only
+        -->
+        <TextView
+            android:id="@+id/skyBarBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|start"
+            android:layout_marginTop="90dp"
+            android:layout_marginStart="6dp"
             android:layout_marginBottom="6dp"
-            android:layout_marginEnd="60dp"
+            android:layout_marginEnd="6dp"
             android:textColor="#7F7F7F7F"
             android:textSize="10sp"
             android:fontFamily="monospace"
-            android:text="Hansel v0.987\n\n\n\n\n\n monospace testing test one test two" />
-
+            android:textStyle="bold"
+            android:text="   12    16    20    00    04    08    12" />
 
         <!-- Paused floaties - top center, side by side.
              LIVE UPDATES PAUSED: visible when liveFollowMode=false.
