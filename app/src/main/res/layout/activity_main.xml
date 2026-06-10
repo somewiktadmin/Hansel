@@ -20,42 +20,71 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
-        <!-- Status overlay - top left, updates on each location fix
-        For example: Hansel  2026-06-05 18:36:21  19.703125, -155.983718  1242ft  Z:14  0 MPH
-          o  WG NM in 10d  Rise 04:21/04:51/05:20 Set 19:25/19:53/20:23  cpu:0f  Bat:100%
-         Note to self: #aa rr gg bb :== alpha, red, green, blue. (Alpha is opaque-ness) -->
+        <!--
+            allOverlay.setShadowLayer(2f, 1f, 1f, 0xFF000000);
+            Black shadow, 2px blur, 1px offset.  Makes text readable
+             on any background with zero overlay shading.
+        -->
         <TextView
-            android:id="@+id/statusOverlay"
+            android:id="@+id/allOverlay"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="top|start"
-            android:layout_margin="6dp"
-            android:background="#4F000000"
-            android:textColor="#FFFFFF"
+            android:layout_marginTop="30dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginBottom="6dp"
+            android:layout_marginEnd="60dp"
+            android:textColor="#7F7F7F7F"
             android:textSize="10sp"
             android:fontFamily="monospace"
-            android:padding="4dp"
-            android:layout_marginLeft="60dp"
-            android:layout_marginRight="60dp"
-            android:text="Hansel v0.986" />
+            android:text="Hansel v0.987\n\n\n\n\n\n monospace testing test one test two" />
 
-        <!-- REPLAY PAUSED floatie - top center, hidden until user pans during replay -->
-        <TextView
-            android:id="@+id/replayPausedFloatie"
+
+        <!-- Paused floaties - top center, side by side.
+             LIVE UPDATES PAUSED: visible when liveFollowMode=false.
+             REPLAY PAUSED: visible when replayInProgress and replayFollowMode=false.
+             Both can appear simultaneously when map is panned during replay. -->
+        <LinearLayout
+            android:id="@+id/pausedFloatieRow"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="top|center_horizontal"
             android:layout_marginTop="4dp"
-            android:text="[ REPLAY PAUSED ]"
-            android:visibility="gone"
-            android:paddingLeft="8dp"
-            android:paddingRight="8dp"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp"
-            android:background="#CC000000"
-            android:textColor="#FFFFFF"
-            android:textSize="8sp"
-            android:textStyle="bold" />
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/liveUpdatesPausedFloatie"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:text="[ HISTORY REPLAYING ]"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:layout_marginEnd="4dp"
+                android:background="#CC000000"
+                android:textColor="#FFAAAAAA"
+                android:textSize="8sp"
+                android:textStyle="bold" />
+
+            <!-- This button only visible, when previous button is already visible.-->
+            <TextView
+                android:id="@+id/replayPausedFloatie"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:text=" - [ REPLAY PAUSED ]"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:background="#CC000000"
+                android:textColor="#FFFFFF"
+                android:textSize="8sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
 
         <!-- Right-edge control column: location buttons above zoom controls -->
         <LinearLayout

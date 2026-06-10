@@ -614,14 +614,6 @@
                 let max = Math.ceil(rawMax / 500) * 500;
                 if (max === min) max += 500;
 
-                console.log(
-                    "range", range,
-                    "rawMin", rawMin,
-                    "rawMax", rawMax,
-                    "min", min,
-                    "max", max,
-                );
-
                 let lastPt = points[points.length - 1];
                 let ventStr = lastPt
                     ? distToNorthVent(lastPt.lat, lastPt.lon).display

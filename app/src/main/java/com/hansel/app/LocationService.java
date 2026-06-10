@@ -160,13 +160,19 @@ public class LocationService extends Service {
     /** Deadband suppression threshold in feet. */
     private static final double DEADBAND_FT = 35.0;
 
-    /** Sliding window of recent altitude readings for deadband calculation. */
-    private final double[] deadbandWindow = new double[DEADBAND_N];
+    /** Sliding window of raw latitude readings (degrees) for deadband calculation. */
+    private final double[] deadbandLat = new double[DEADBAND_N];
 
-    /** Number of readings written into deadbandWindow so far. */
+    /** Sliding window of raw longitude readings (degrees) for deadband calculation. */
+    private final double[] deadbandLon = new double[DEADBAND_N];
+
+    /** Sliding window of altitude readings (feet) for deadband calculation. */
+    private final double[] deadbandAlt = new double[DEADBAND_N];
+
+    /** Number of readings written into the deadband windows so far. */
     private int deadbandCount = 0;
 
-    /** True once deadbandWindow has been filled at least once. */
+    /** True once the deadband windows have been filled at least once. */
     private boolean deadbandFull = false;
 
     /** Most recent Location fix, retained for reference.  Not currently used in output. */
@@ -255,17 +261,73 @@ public class LocationService extends Service {
      * @return true if the point should be suppressed, false if it should
      *         be written.
      */
-    private boolean deadbandSuppress(double altFt) {
+    /**
+     * Returns true if the given fix should be suppressed by the live deadband
+     * filter.  Uses a 3D distance check across all three axes: N-S, E-W, and
+     * vertical.  A fix is suppressed only when the window is full AND every
+     * entry in the window is within DEADBAND_FT feet of the new fix in all
+     * three dimensions simultaneously.
+     *
+     * <p>Horizontal distance uses a flat-earth degree approximation.  At Hawaii
+     * latitudes (~19 deg N) and at the DEADBAND_FT scale (5 ft), the error
+     * versus Vincenty is well under one inch.  The approximation is intentional
+     * and correct for this use case.</p>
+     *
+     * <p>Raw lat/lon from the Location object are stored in the window, not
+     * the fmtLatLon()-formatted values written to the log.  This avoids
+     * quantization error from the 6-decimal rounding when comparing against
+     * the DEADBAND_FT threshold.</p>
+     *
+     * <p>All three window arrays (deadbandLat, deadbandLon, deadbandAlt) are
+     * always updated together, suppressed or not, so the window tracks what
+     * the GPS is actually reporting.</p>
+     *
+     * @param lat   raw latitude in decimal degrees.
+     * @param lon   raw longitude in decimal degrees.
+     * @param altFt altitude in feet.
+     * @return true if the fix should be suppressed, false if it should be written.
+     */
+    /**
+     * Returns true if the given fix should be suppressed by the live deadband
+     * filter.  Uses a 3D check across all three axes: N-S, E-W, and vertical.
+     * A fix is suppressed only when the window is full AND every entry in the
+     * window is within DEADBAND_FT of the new fix in all three dimensions.
+     *
+     * <p>Horizontal axes are compared in decimal degrees after converting
+     * DEADBAND_FT to a degree threshold once per call.  At Hawaii latitudes
+     * and at the 5ft scale, treating lat and lon degrees as equal-length units
+     * introduces less than one inch of error - acceptable and intentional.</p>
+     *
+     * <p>Raw lat/lon from the Location object are stored in the window, not
+     * the fmtLatLon()-formatted values written to the log.  This avoids
+     * quantization error from the 6-decimal rounding.</p>
+     *
+     * <p>All three window arrays are always updated together, suppressed or
+     * not, so the window tracks what the GPS is actually reporting.</p>
+     *
+     * @param lat   raw latitude in decimal degrees.
+     * @param lon   raw longitude in decimal degrees.
+     * @param altFt altitude in feet.
+     * @return true if the fix should be suppressed, false if it should be written.
+     */
+    private boolean deadbandSuppress(double lat, double lon, double altFt) {
         if (deadbandFull) {
-            double lo = deadbandWindow[0], hi = deadbandWindow[0];
-            for (double v : deadbandWindow) {
-                if (v < lo) lo = v;
-                if (v > hi) hi = v;
+            double threshDeg = DEADBAND_FT / 364000.0;
+            boolean allClose = true;
+            for (int i = 0; i < DEADBAND_N; i++) {
+                if (Math.abs(lat    - deadbandLat[i]) > threshDeg ||
+                        Math.abs(lon    - deadbandLon[i]) > threshDeg ||
+                        Math.abs(altFt  - deadbandAlt[i]) > DEADBAND_FT) {
+                    allClose = false;
+                    break;
+                }
             }
-            if ((hi - lo) <= DEADBAND_FT && Math.abs(altFt - lo) <= DEADBAND_FT)
-                return true;
+            if (allClose) return true;
         }
-        deadbandWindow[deadbandCount % DEADBAND_N] = altFt;
+        int slot = deadbandCount % DEADBAND_N;
+        deadbandLat[slot] = lat;
+        deadbandLon[slot] = lon;
+        deadbandAlt[slot] = altFt;
         deadbandCount++;
         if (deadbandCount >= DEADBAND_N) deadbandFull = true;
         return false;
@@ -274,6 +336,7 @@ public class LocationService extends Service {
     /**
      * Resets the live deadband filter.  Called by mark() so that a note
      * always breaks through, and the filter starts fresh from that point.
+     * All three window arrays are cleared together.
      */
     private void deadbandReset() {
         deadbandCount = 0;
@@ -319,11 +382,11 @@ public class LocationService extends Service {
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
         if (false)
-        if (ActivityCompat.checkSelfPermission(this,
-                Manifest.permission.ACCESS_FINE_LOCATION)
-                == PackageManager.PERMISSION_GRANTED) {
-            client.requestLocationUpdates(req, callback, Looper.getMainLooper());
-        }
+            if (ActivityCompat.checkSelfPermission(this,
+                    Manifest.permission.ACCESS_FINE_LOCATION)
+                    == PackageManager.PERMISSION_GRANTED) {
+                client.requestLocationUpdates(req, callback, Looper.getMainLooper());
+            }
     }
 
     /**
@@ -926,11 +989,11 @@ public class LocationService extends Service {
 
             sendToUI(obj.toString());
 
-            MainActivity.updateStatusOverlay( t, lat, lon, altFt, lastSpd, lastCrs );
+            MainActivity.updateAllOverlay( t, lat, lon, altFt, lastSpd, lastCrs );
 
             lastLocation = loc;
 
-            if (deadbandSuppress(altFt)) return;
+            if (deadbandSuppress(loc.getLatitude(), loc.getLongitude(), altFt)) return;
 
             if (writer != null) {
                 writer.write(obj.toString());

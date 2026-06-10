@@ -35,8 +35,6 @@ import org.osmdroid.views.overlay.TilesOverlay;
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider;
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 
-import java.util.Date;
-
 /**
  * Hansel v0.986 main activity.
  *
@@ -76,7 +74,25 @@ public class MainActivity extends Activity {
     private MyLocationNewOverlay locationOverlay;
     //private CompassOverlay compassOverlay;
 
-    public static TextView statusOverlay;
+    public static TextView allOverlay;
+
+    /** Cached center overlay data - updated on pan/zoom/replay. */
+    private static double centerLat  = 0;
+    private static double centerLon  = 0;
+    private static double centerAlt  = 0;
+    private static int    centerZoom = 0;
+
+    /** Cached status overlay data - updated 1Hz from handleLocation(). */
+    private static String statusLine1 = "";
+    private static String statusLine2 = "";
+
+    /** Sky bar header line - constant, computed once. */
+    private static final String SKY_HEADER = "12    16    20    00    04    08    12";
+
+    /** Number of usable lines in allOverlay - computed after layout. */
+    private static int overlayLines = 21;
+
+    private static boolean replayFollowMode = true;
 
     // cached values - recalculate only when date changes
     private static String lastCalcDate = "";
@@ -100,6 +116,7 @@ public class MainActivity extends Activity {
     private static final int    REPLAY_LINE_COLOR = Color.argb(127, 127, 100, 40);
     private static final float  REPLAY_LINE_WIDTH = 4f;
     private static final double GAP_METERS        = 1609.34;
+    private Button btnMeRef;
 
 
     /**
@@ -187,7 +204,7 @@ public class MainActivity extends Activity {
                 .setOsmdroidTileCache(new java.io.File(getFilesDir(), "tiles"));
         mapView.setTileSource(
                 org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK);
-        //mapView.setBuiltInZoomControls(false);
+        mapView.setBuiltInZoomControls(false);
         mapView.setMultiTouchControls(true);
         mapView.getController().setZoom(12);
         mapView.getController().setCenter(new GeoPoint(19.402, -155.293));
@@ -200,21 +217,54 @@ public class MainActivity extends Activity {
                 .setLoadingLineColor(Color.argb(255, 0, 255, 0));
 
         replayPausedFloatie = findViewById(R.id.replayPausedFloatie);
+        TextView liveUpdatesPausedFloatie =
+                findViewById(R.id.liveUpdatesPausedFloatie);
 
-        statusOverlay = findViewById(R.id.statusOverlay);
+        allOverlay = findViewById(R.id.allOverlay);
+        allOverlay.setShadowLayer(2f, 1f, 1f, 0xFF000000);
+        allOverlay.post(() -> {
+            if (allOverlay.getLineHeight() > 0) {
+                overlayLines = allOverlay.getHeight() / allOverlay.getLineHeight();
+            }
+        });
 
         Button btnMe      = findViewById(R.id.btnMe);
         Button btnHMM     = findViewById(R.id.btnHMM);
         Button btnZoomIn  = findViewById(R.id.btnZoomIn);
         Button btnZoomOut = findViewById(R.id.btnZoomOut);
-        //zoomSlider        = findViewById(R.id.zoomSlider);
+        btnMeRef = btnMe;
 
-        // [ME] - animate to last known GPS position
-        btnMe.setOnClickListener(v -> {
+        // resumeLive: re-enable live map following.  Does NOT touch log files,
+        // does NOT call JS stop() - that caused log rotation on every pan.
+        // Replay is stopped by setting replayInProgress=false only; the JS
+        // replay interval will exhaust naturally or be stopped separately.
+        Runnable resumeLive = () -> {
+            replayInProgress = false;
+            replayFollowMode = true;
+            liveFollowMode   = true;
+            btnMe.setTextColor(Color.GREEN);
+            liveUpdatesPausedFloatie.setVisibility(View.GONE);
+            replayPausedFloatie.setVisibility(View.GONE);
             if (locationOverlay.getMyLocation() != null) {
                 mapView.getController().setZoom(15);
-                mapView.getController().animateTo(locationOverlay.getMyLocation());
+                mapView.getController().animateTo(
+                        locationOverlay.getMyLocation());
             }
+        };
+
+        // [ME] - resume live follow, stop replay, snap to phone position
+        btnMe.setOnClickListener(v -> resumeLive.run());
+
+        // allOverlay tap - same as [ME]
+        allOverlay.setOnClickListener(v -> resumeLive.run());
+
+        // [HISTORY REPLAYING] tap - same as [ME]
+        liveUpdatesPausedFloatie.setOnClickListener(v -> resumeLive.run());
+
+        // [REPLAY PAUSED] tap - resume replay follow only, live stays paused
+        replayPausedFloatie.setOnClickListener(v -> {
+            replayFollowMode = true;
+            replayPausedFloatie.setVisibility(View.GONE);
         });
 
         // [HMM] - Halemaumau
@@ -258,37 +308,38 @@ public class MainActivity extends Activity {
         mapView.addMapListener(new MapListener() {
             @Override
             public boolean onScroll(ScrollEvent event) {
-
-                if (!replayInProgress) {
-                    liveFollowMode = false;
+                liveFollowMode = false;
+                if (btnMeRef != null) btnMeRef.setTextColor(Color.GRAY);
+                // [HISTORY REPLAYING] only shown during replay, not during live pan
+                if (replayInProgress) {
+                    replayFollowMode = false;
+                    liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
                     replayPausedFloatie.setVisibility(View.VISIBLE);
-                    replayPausedFloatie.setVisibility(View.INVISIBLE);
-                    webView.evaluateJavascript("replayPause()", null);
                 }
-                java.text.SimpleDateFormat sdf =
-                        new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",
-                                java.util.Locale.US);
-                String ts = sdf.format(new Date());
                 IGeoPoint gs = mapView.getMapCenter();
-
-                if (!updatingMap) {
-                    updatingMap = true;
-                    updateStatusOverlay( ts, gs.getLatitude(), gs.getLongitude(),
-                        0, 0, 0 ); //altFt0, spdMph, crsDeg  );
-                    updatingMap = false;
-                }
+                centerZoom = (int) Math.round(mapView.getZoomLevelDouble());
+                centerLat  = gs.getLatitude();
+                centerLon  = gs.getLongitude();
+                centerAlt  = 0;
+                rebuildAllOverlay();
                 return false;
             }
 
             @Override
             public boolean onZoom(ZoomEvent event) {
-                java.text.SimpleDateFormat sdf =
-                        new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",
-                                java.util.Locale.US);
-                String ts = sdf.format(new Date() );
+                liveFollowMode = false;
+                if (btnMeRef != null) btnMeRef.setTextColor(Color.GRAY);
+                if (replayInProgress) {
+                    replayFollowMode = false;
+                    liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
+                    replayPausedFloatie.setVisibility(View.VISIBLE);
+                }
                 IGeoPoint gs = mapView.getMapCenter();
-                updateStatusOverlay( ts, gs.getLatitude(), gs.getLongitude(),
-                        0, 0, 0 ); //altFt0, spdMph, crsDeg  );
+                centerZoom = (int) Math.round(mapView.getZoomLevelDouble());
+                centerLat  = gs.getLatitude();
+                centerLon  = gs.getLongitude();
+                centerAlt  = 0;
+                rebuildAllOverlay();
                 return false;
             }
         });
@@ -415,13 +466,19 @@ public class MainActivity extends Activity {
 
             replayHeadMarker.setPosition(pt);
 
-            if (liveFollowMode && !gap) {
+            if (replayFollowMode && !gap) {
                 mapView.getController().animateTo(pt);
             }
 
             mapView.invalidate();
-            updateStatusOverlay(d.getString("t"), lat, lon,
-                    d.getDouble("alt"), d.getDouble("spd"), d.getDouble("crs") );
+            centerLat  = lat;
+            centerLon  = lon;
+            centerAlt  = d.optDouble("alt", 0);
+            centerZoom = (int) Math.round(mapView.getZoomLevelDouble());
+            updateAllOverlay(d.getString("t"), lat, lon,
+                    d.optDouble("alt",  0),
+                    d.optDouble("spd",  0),
+                    d.optDouble("crs",  0));
 
         } catch (Exception e) {
             android.util.Log.e("Hansel",
@@ -478,35 +535,6 @@ public class MainActivity extends Activity {
                 mapView.getResources(), bm);
     }
 
-/*
-    public static void handleReplayPoint(String data) {
-        try {
-            org.json.JSONObject d = new org.json.JSONObject(data);
-            if (!d.has("t")) return;
-            double lat = d.getDouble("lat");
-            double lon = d.getDouble("lon");
-            // update map overlay
-            GeoPoint pt = new GeoPoint(lat, lon);
-            replayPointsOverlay.addPoint(pt);
-            replayHeadMarker.setPosition(pt);
-            replayInProgress = true;
-            updatingMap = true;
-            if (liveFollowMode) {
-                mapView.getController().animateTo(pt);
-            }
-            replayInProgress = false;
-            updatingMap = false;
-            mapView.invalidate();
-            // update status line
-            updateStatusOverlay(d.getString("t"), lat, lon, d.getDouble("altFt"),
-                    d.getDouble("spd"), d.getDouble("crs") );
-        } catch (Exception e) {
-            android.util.Log.e("Hansel", "replayPoint parse error: " + e.getMessage());
-        }
-    }
-*/
-
-
     @Override
     public void onResume() {
         super.onResume();
@@ -540,77 +568,46 @@ public class MainActivity extends Activity {
 // ====
 
     /**
-     * Updates the status overlay with the latest location fix and device state.
-     * Called only on real location updates - timestamp reflects actual fix time,
-     * not wall clock.  Never call on a timer.
+     * Called from handleLocation() (1Hz live) and handleReplayPoint().
+     * Updates cached status fields and triggers a full overlay rebuild.
      *
-     * @param fixTime fix datetime (HST)
-     * @param lat  latitude decimal degrees
-     * @param lon  longitude decimal degrees
-     * @param altFt altitude in feet
-     * @param spdMph speed in MPH
-     * @param crsDeg course degrees from north
+     * @param fixTime timestamp string yyyy-MM-dd_HH-mm-ss HST.
+     * @param lat     latitude decimal degrees.
+     * @param lon     longitude decimal degrees.
+     * @param altFt   altitude in feet.
+     * @param spdMph  speed in MPH.
+     * @param crsDeg  course in degrees from north (not shown - arrow shows it graphically).
      */
-    public static void updateStatusOverlay( String fixTime, double lat, double lon,
-                                           double altFt, double spdMph, double crsDeg ) {
+    public static void updateAllOverlay(String fixTime, double lat, double lon,
+                                        double altFt, double spdMph, double crsDeg) {
+        if (allOverlay == null) return;
 
-        if (statusOverlay == null) return;
-
-        /*
-        java.text.SimpleDateFormat sdf =
-                new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",
-                        java.util.Locale.US);
-        String ts = sdf.format(new java.util.Date(fixTime)); */
-        // translation of the javascript version
+        // translation of the javascript timestamp format
         String ts = fixTime.replace("_", " ")
                 .replaceAll("-(\\d{2})-(\\d{2})$", ":$1:$2");
 
-        int zoom  = (int) Math.round(mapView.getZoomLevelDouble());
+        String moon = getMoonPhase(ts, lat, lon);
+        String[] sun = getSunTimes(ts, lat, lon);
 
-        // cache hit rate from OSMDroid
-        String cache = getCacheRate();
+        // line 1: timestamp, position, altitude, speed
+        // For example: 2026-06-08 18:36:21  19.411411 -155.269269  1242ft  0 MPH
+        statusLine1 = String.format(java.util.Locale.US,
+                "%s  %.6f %.6f  %dft  %d MPH",
+                ts, lat, lon, (int) altFt, (int) spdMph);
 
-        // battery
-        /*
-        android.content.Intent bi = statusOverlay.getContext()
-                .registerReceiver(null,
-                        new android.content.IntentFilter(
-                                android.content.Intent.ACTION_BATTERY_CHANGED));
-        int batPct = 0;
-        if (false) if (bi != null) {
-            int level = bi.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, 0);
-            int scale = bi.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100);
-            batPct = (int) (100f * level / scale);
-        }
-        */
+        // line 2: moon phase and sun times
+        // For example: Waxing Gibbous, FM in 4d  Rise 05:20 Set 19:25
+        statusLine2 = String.format(java.util.Locale.US,
+                "%s  Rise %s Set %s",
+                moon, sun[2], sun[3]);
 
-        // CPU temp in degrees F - reads first available cpu thermal zone
-        //float cpuF = getCpuTempF();
-
-        // moon phase crescent char (176 = degree sign reused as placeholder -
-        // moon char selected from 28-step array by phase fraction)
-        String moon = getMoonPhase( ts, lat, lon );
-
-        // sunrise/sunset - astronomical/nautical/civil
-        String[] sunTimes = getSunTimes( ts, lat, lon );
-
-        String line = String.format(java.util.Locale.US,
-                "Hansel v0.986 %s  %.6f, %.6f  %dft  Z:%d  %d MPH  %d\u00b0  %s",
-                        //+ "  Rise %s/%s/%s  Set %s/%s/%s  CPU:%d\u00b0f  Bat:%d%%", //  Crt:%s",
-                ts, lat, lon, (int) altFt, zoom,
-                (int) spdMph, (int) crsDeg, moon );
-                //sunTimes[0], sunTimes[1], sunTimes[2],
-                //sunTimes[3], sunTimes[4], sunTimes[5],
-                //batPct) ; //, cache);
-
-        statusOverlay.post(() -> statusOverlay.setText(line));
+        updateSkyOverlay(fixTime.substring(0, 10));
+        rebuildAllOverlay();
     }
 
 // ====
 // Helpers
 // ====
-
-
 
     /**
      *  Returns OSMDroid cache hit rate as "nn.n%" or "n/a" if unavailable.
@@ -676,7 +673,9 @@ public class MainActivity extends Activity {
         return cachedSun;
     }
 
-// ---------------------------------------------------------------------------
+
+// ====
+
 
     /**
      * Returns moon phase label and days to next FM or NM.
@@ -736,7 +735,7 @@ public class MainActivity extends Activity {
         return d + (153 * mm + 2) / 5 + 365L * yy + yy / 4 - yy / 100 + yy / 400 - 32045;
     }
 
-// ---------------------------------------------------------------------------
+// ====
 
     /**
      * Returns [astroRise, nautRise, civilRise, civilSet, nautSet, astroSet]
@@ -988,6 +987,254 @@ public class MainActivity extends Activity {
                     + e.getMessage());
             return false;
         }
+    }
+
+    /** Hardcoded Kilauea center coordinates for sky calculations. */
+    private static final double SKY_LAT =  19.411411;
+    private static final double SKY_LON = -155.269269;
+
+    /** Accumulated sky bar lines for replay mode (up to 10). */
+    private static final java.util.LinkedList<String> skyBarLines =
+            new java.util.LinkedList<>();
+
+    /**
+     * Updates cached center overlay fields and triggers overlay rebuild.
+     * Called from onScroll(), onZoom(), and handleReplayPoint().
+     * Alt is 0 when called from pan/zoom (shown as "alt:?").
+     * TODO: look up nearest recorded alt from altitude database within 25ft.
+     *
+     * @param lat   map center latitude decimal degrees.
+     * @param lon   map center longitude decimal degrees.
+     * @param altFt recorded altitude feet, 0 if unknown.
+     * @param zoom  current map zoom level.
+     */
+    public static void updateCenterOverlay(double lat, double lon,
+                                           double altFt, int zoom) {
+        centerLat  = lat;
+        centerLon  = lon;
+        centerAlt  = altFt;
+        centerZoom = zoom;
+        rebuildAllOverlay();
+    }
+
+    /**
+     * Returns solar altitude in degrees for a given fractional Julian Day (UT)
+     * at the given coordinates.  Accurate to ~1 degree - sufficient for
+     * twilight zone boundaries.
+     *
+     * @param jd  fractional Julian Day in UT.
+     * @param lat latitude in decimal degrees.
+     * @param lon longitude in decimal degrees.
+     * @return solar altitude in degrees, negative below horizon.
+     */
+    private static double calcSunAltitude(double jd, double lat, double lon) {
+        double n   = jd - 2451545.0;
+        double L   = (280.460 + 0.9856474 * n) % 360.0;
+        double g   = Math.toRadians((357.528 + 0.9856003 * n) % 360.0);
+        double lam = Math.toRadians(L + 1.915 * Math.sin(g)
+                + 0.020 * Math.sin(2*g));
+        double eps    = Math.toRadians(23.439 - 0.0000004 * n);
+        double sinDec = Math.sin(eps) * Math.sin(lam);
+        double decl   = Math.asin(sinDec);
+        double ra     = Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam));
+        double gmst   = (280.46061837 + 360.98564736629 * n) % 360.0;
+        double ha     = Math.toRadians(gmst + lon - Math.toDegrees(ra));
+        double sinAlt = Math.sin(Math.toRadians(lat)) * Math.sin(decl)
+                + Math.cos(Math.toRadians(lat)) * Math.cos(decl) * Math.cos(ha);
+        return Math.toDegrees(Math.asin(Math.max(-1.0, Math.min(1.0, sinAlt))));
+    }
+
+    /**
+     * Returns lunar altitude in degrees for a given fractional Julian Day (UT)
+     * at the given coordinates.  Low-precision (~1-2 degrees), sufficient for
+     * above/below horizon and 30-degree elevation checks.
+     *
+     * @param jd  fractional Julian Day in UT.
+     * @param lat latitude in decimal degrees.
+     * @param lon longitude in decimal degrees.
+     * @return lunar altitude in degrees, negative below horizon.
+     */
+    private static double calcMoonAltitude(double jd, double lat, double lon) {
+        double n  = jd - 2451545.0;
+        double Lm = (218.316 + 13.176396 * n) % 360.0;
+        double Mm = Math.toRadians((134.963 + 13.064993 * n) % 360.0);
+        double Fm = Math.toRadians((93.272  + 13.229350 * n) % 360.0);
+        double lam = Math.toRadians(Lm
+                + 6.289 * Math.sin(Mm)
+                - 1.274 * Math.sin(2*Math.toRadians(Lm) - Mm)
+                + 0.658 * Math.sin(2*Math.toRadians(Lm)));
+        double beta   = Math.toRadians(5.128 * Math.sin(Fm));
+        double eps    = Math.toRadians(23.439 - 0.0000004 * n);
+        double sinDec = Math.sin(eps) * Math.sin(lam) * Math.cos(beta)
+                + Math.cos(eps) * Math.sin(beta);
+        double decl   = Math.asin(Math.max(-1.0, Math.min(1.0, sinDec)));
+        double ra     = Math.atan2(
+                Math.sin(lam) * Math.cos(eps) * Math.cos(beta)
+                        - Math.sin(beta) * Math.sin(eps),
+                Math.cos(lam) * Math.cos(beta));
+        double gmst   = (280.46061837 + 360.98564736629 * n) % 360.0;
+        double ha     = Math.toRadians(gmst + lon - Math.toDegrees(ra));
+        double sinAlt = Math.sin(Math.toRadians(lat)) * Math.sin(decl)
+                + Math.cos(Math.toRadians(lat)) * Math.cos(decl) * Math.cos(ha);
+        return Math.toDegrees(Math.asin(Math.max(-1.0, Math.min(1.0, sinAlt))));
+    }
+
+    /**
+     * Returns lunar illumination fraction 0.0-1.0 for a given Julian Day.
+     * 0.0 = new moon, 1.0 = full moon.
+     *
+     * @param jd fractional Julian Day in UT.
+     * @return illumination fraction 0.0 to 1.0.
+     */
+    private static double calcMoonIllumination(double jd) {
+        double n   = jd - 2451545.0;
+        double Lm  = Math.toRadians((218.316 + 13.176396 * n) % 360.0);
+        double Ls  = Math.toRadians((280.460 +  0.9856474 * n) % 360.0);
+        double Mm  = Math.toRadians((134.963 + 13.064993 * n) % 360.0);
+        double Ms  = Math.toRadians((357.528 +  0.9856003 * n) % 360.0);
+        double elong = Math.acos(Math.max(-1.0, Math.min(1.0,
+                Math.sin(Ls + 1.915*Math.sin(Ms)) * Math.sin(Lm + 6.289*Math.sin(Mm))
+                        + Math.cos(Ls + 1.915*Math.sin(Ms)) * Math.cos(Lm + 6.289*Math.sin(Mm)))));
+        return (1.0 - Math.cos(elong)) / 2.0;
+    }
+
+    /**
+     * Builds the 72-character sky timeline string for the given date.
+     * Timeline runs noon HST to noon HST next day (midnight at center).
+     * Each character represents 20 minutes.
+     *
+     * Character key (priority order, dark to light):
+     *   .  full daylight, moon not notable
+     *   ,  daylight, moon above horizon but below 30 deg
+     *   '  daylight, moon above 30 deg elevation
+     *   -  civil twilight (sun 0 to -6 deg)
+     *   =  nautical twilight (sun -6 to -12 deg)
+     *   /  astronomical twilight (sun -12 to -18 deg)
+     *   *  astronomical dark, moon below horizon (Milky Way viable)
+     *   m  dark, moon above horizon, illumination >50pct
+     *   n  dark, moon above horizon, illumination <50pct
+     *
+     * @param date date string yyyy-MM-dd in HST.
+     * @return 72-character sky bar string.
+     */
+    private static String calcSkyBar(String date) {
+        int y  = Integer.parseInt(date.substring(0, 4));
+        int mo = Integer.parseInt(date.substring(5, 7));
+        int d  = Integer.parseInt(date.substring(8, 10));
+
+        // noon HST = UT - 10h.  julianDay() returns integer JD at noon UT.
+        // noon HST as fractional JD = julianDay(y,mo,d) - 10.0/24.0
+        double jdStart = julianDay(y, mo, d) - 10.0 / 24.0;
+
+        StringBuilder sb = new StringBuilder(36);
+        for (int i = 0; i < 36; i++) {
+            // center of this 40-min slot in fractional JD (UT)
+            double jd = jdStart + (i * 40.0 + 20.0) / 1440.0;
+
+            double sunAlt  = calcSunAltitude(jd,  SKY_LAT, SKY_LON);
+            double moonAlt = calcMoonAltitude(jd, SKY_LAT, SKY_LON);
+            double moonIll = calcMoonIllumination(jd);
+
+            char c;
+            if (sunAlt >= 6.0) {
+                // full daylight
+                if      (moonAlt > 30.0) c = '\'';
+                else if (moonAlt >  0.0) c = ',';
+                else                     c = '.';
+            } else if (sunAlt >=  0.0)  { c = '-'; // civil twilight
+            } else if (sunAlt >= -6.0)  { c = '='; // nautical twilight
+            } else if (sunAlt >= -12.0) { c = '/'; // astronomical twilight
+            } else {
+                // astronomical darkness
+                if      (moonAlt <= 0.0) c = '*';
+                else if (moonIll >= 0.5) c = 'm';
+                else                     c = 'n';
+            }
+            sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Updates the sky bar lines list and triggers overlay rebuild.
+     * In live mode: single entry, always today.
+     * In replay mode: accumulates up to (overlayLines - 5) entries,
+     * newest at bottom, oldest dropped from top.
+     *
+     * @param date date string yyyy-MM-dd HST.
+     */
+    public static void updateSkyOverlay(String date) {
+        String[] months = {"Jan","Feb","Mar","Apr","May","Jun",
+                "Jul","Aug","Sep","Oct","Nov","Dec"};
+        int moIdx = Integer.parseInt(date.substring(5, 7)) - 1;
+        String bar  = calcSkyBar(date);
+        // prefix is just the two-digit day - date is always yyyy-MM-dd
+        String day  = date.substring(8, 10);
+        String line = day + "|" + bar;
+
+        int maxLines = Math.max(1, overlayLines - 5);
+
+        if (!replayInProgress) {
+            skyBarLines.clear();
+            skyBarLines.add(line);
+        } else {
+            if (skyBarLines.isEmpty() ||
+                    !skyBarLines.getLast().startsWith(day + "|")) {
+                skyBarLines.add(line);
+                if (skyBarLines.size() > maxLines) skyBarLines.removeFirst();
+            }
+        }
+    }
+
+    /**
+     * Rebuilds and sets the full allOverlay text from cached fields.
+     * Called by updateAllOverlay(), updateCenterOverlay(), and the
+     * MapListener on scroll/zoom.
+     *
+     * Layout (line numbers are zero-based):
+     *   0:  Hansel v0.987  centerLat, centerLon, centerAlt, centerZoom
+     *   1:  statusLine1 (timestamp, lat, lon, alt, spd)
+     *   2:  statusLine2 (moon phase, sun rise/set)
+     *   3:  (blank)
+     *   ... (blank lines, sky bar grows upward into here during replay)
+     *   n-2: 12    16    20    00    04    08    12  (header)
+     *   n-1: DD|<36-char sky bar>  (newest, or only live line)
+     */
+    public static void rebuildAllOverlay() {
+        if (allOverlay == null) return;
+
+        String altStr = (centerAlt > 0)
+                ? String.format(java.util.Locale.US, "%dft", (int) centerAlt)
+                : "alt:?";
+        String line0 = String.format(java.util.Locale.US,
+                "Hansel v0.987  %.6f %.6f  %s  Z:%d",
+                centerLat, centerLon, altStr, centerZoom);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(line0).append("\n");
+        sb.append(statusLine1).append("\n");
+        sb.append(statusLine2).append("\n");
+        sb.append("\n");
+
+        // blank lines to push sky bar to bottom
+        int skyCount  = skyBarLines.size();
+        int fixedRows = 4 + 1 + skyCount; // header + 3 status + 1 blank + sky lines
+        int blanks    = Math.max(0, overlayLines - fixedRows);
+        for (int i = 0; i < blanks; i++) sb.append("\n");
+
+        // sky bar header and lines
+        sb.append(SKY_HEADER).append("\n");
+        for (int i = 0; i < skyBarLines.size(); i++) {
+            sb.append(skyBarLines.get(i));
+            if (i < skyBarLines.size() - 1) sb.append("\n");
+        }
+
+        int color = liveFollowMode ? Color.GREEN : Color.GRAY;
+        final String text = sb.toString();
+        allOverlay.post(() -> {
+            allOverlay.setText(text);
+            allOverlay.setTextColor(color);
+        });
     }
 
 }
