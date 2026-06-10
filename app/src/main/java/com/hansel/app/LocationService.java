@@ -267,43 +267,20 @@ public class LocationService extends Service {
      * vertical.  A fix is suppressed only when the window is full AND every
      * entry in the window is within DEADBAND_FT feet of the new fix in all
      * three dimensions simultaneously.
-     *
-     * <p>Horizontal distance uses a flat-earth degree approximation.  At Hawaii
-     * latitudes (~19 deg N) and at the DEADBAND_FT scale (5 ft), the error
-     * versus Vincenty is well under one inch.  The approximation is intentional
-     * and correct for this use case.</p>
-     *
-     * <p>Raw lat/lon from the Location object are stored in the window, not
-     * the fmtLatLon()-formatted values written to the log.  This avoids
-     * quantization error from the 6-decimal rounding when comparing against
-     * the DEADBAND_FT threshold.</p>
-     *
-     * <p>All three window arrays (deadbandLat, deadbandLon, deadbandAlt) are
-     * always updated together, suppressed or not, so the window tracks what
-     * the GPS is actually reporting.</p>
-     *
-     * @param lat   raw latitude in decimal degrees.
-     * @param lon   raw longitude in decimal degrees.
-     * @param altFt altitude in feet.
-     * @return true if the fix should be suppressed, false if it should be written.
-     */
-    /**
+     /**
      * Returns true if the given fix should be suppressed by the live deadband
-     * filter.  Uses a 3D check across all three axes: N-S, E-W, and vertical.
-     * A fix is suppressed only when the window is full AND every entry in the
-     * window is within DEADBAND_FT of the new fix in all three dimensions.
+     * filter.  Answers the question "have I moved in the last DEADBAND_N seconds?"
      *
-     * <p>Horizontal axes are compared in decimal degrees after converting
-     * DEADBAND_FT to a degree threshold once per call.  At Hawaii latitudes
-     * and at the 5ft scale, treating lat and lon degrees as equal-length units
-     * introduces less than one inch of error - acceptable and intentional.</p>
+     * <p>Horizontal comparison uses 5-decimal-place rounding on lat and lon.
+     * At 5 decimal places, 1 unit is ~3.6 feet at the equator and ~1.9 feet
+     * at 57 deg N longitude.  This is sufficient to answer "have I moved"
+     * without trig, constants, or projection math.  Altitude uses DEADBAND_FT
+     * directly since feet are already the right unit.</p>
      *
-     * <p>Raw lat/lon from the Location object are stored in the window, not
-     * the fmtLatLon()-formatted values written to the log.  This avoids
-     * quantization error from the 6-decimal rounding.</p>
-     *
-     * <p>All three window arrays are always updated together, suppressed or
-     * not, so the window tracks what the GPS is actually reporting.</p>
+     * <p>A fix is suppressed only when the window is full AND every entry in
+     * the window has the same rounded lat, lon, and is within DEADBAND_FT of
+     * the current altitude.  Any difference in the last 60 seconds defeats
+     * the deadband.</p>
      *
      * @param lat   raw latitude in decimal degrees.
      * @param lon   raw longitude in decimal degrees.
@@ -311,13 +288,15 @@ public class LocationService extends Service {
      * @return true if the fix should be suppressed, false if it should be written.
      */
     private boolean deadbandSuppress(double lat, double lon, double altFt) {
+        long rLat = Math.round(lat * 100000.0);
+        long rLon = Math.round(lon * 100000.0);
+
         if (deadbandFull) {
-            double threshDeg = DEADBAND_FT / 364000.0;
             boolean allClose = true;
             for (int i = 0; i < DEADBAND_N; i++) {
-                if (Math.abs(lat    - deadbandLat[i]) > threshDeg ||
-                        Math.abs(lon    - deadbandLon[i]) > threshDeg ||
-                        Math.abs(altFt  - deadbandAlt[i]) > DEADBAND_FT) {
+                if (Math.round(deadbandLat[i] * 100000.0) != rLat ||
+                        Math.round(deadbandLon[i] * 100000.0) != rLon ||
+                        Math.abs(altFt - deadbandAlt[i]) > DEADBAND_FT) {
                     allClose = false;
                     break;
                 }
