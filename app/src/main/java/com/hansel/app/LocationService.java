@@ -27,6 +27,7 @@ import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.Priority;
 
 import org.json.JSONObject;
 
@@ -1133,10 +1134,17 @@ public class LocationService extends Service {
      *       had a chance to run on a fresh install.
      */
     void startGPS() {
+        /*
         LocationRequest req = LocationRequest.create()
                 .setInterval(interval)
                 .setFastestInterval(interval)
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        */
+
+        LocationRequest req = new LocationRequest.Builder(
+                Priority.PRIORITY_HIGH_ACCURACY, interval)
+                .setMinUpdateIntervalMillis(interval)
+                .build();
 
         callback = new LocationCallback() {
             @Override

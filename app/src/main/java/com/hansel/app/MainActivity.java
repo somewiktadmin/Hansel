@@ -325,6 +325,7 @@ public class MainActivity extends Activity {
             //I can re-trigger debug here as often as needed
             //gpsInfoOverlay.setTypeface(Typeface.create("monospace", Typeface.NORMAL));
             say( gpsInfoOverlay.getTypeface().toString() );
+            //selectTileCacheFolder();
             if (Build.VERSION.SDK_INT >= 34) {
                 say("hmm pressed " + gpsInfoOverlay.getTypeface().getSystemFontFamilyName() );
             }
