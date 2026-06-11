@@ -1,6 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme for Hansel-v0.97. -->
-    <style name="Theme.Hansel" parent="Theme.AppCompat.Light.DarkActionBar">
+    <!-- Base application theme for Hansel-v0.986. -->
+    <style name="Theme.Hansel" parent="Theme.AppCompat.NoActionBar">
+        <item name="fontFamily">@font/courier_prime_regular</item>
         <!-- Primary brand color. -->
         <item name="colorPrimary">@color/purple_500</item>
         <item name="colorPrimaryDark">@color/purple_700</item>

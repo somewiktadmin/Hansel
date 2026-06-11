@@ -140,7 +140,7 @@ public class LocationService extends Service {
      *       startLoggingDefault() - it will always be 30_000 and pretending
      *       otherwise is misleading.
      */
-    int interval = 1000; //30000 30_000
+    int interval = 30000; //30000 30_000
 
     /**
      * Minimum GPS request interval in milliseconds.  500ms was tried and
@@ -235,52 +235,42 @@ public class LocationService extends Service {
      * live deadband filter.  Suppressed points are not written to the log
      * but are still sent to the UI via sendToUI().
      *
-     * <p>The filter maintains a sliding window of the last DEADBAND_N (10)
+     * The filter maintains a sliding window of the last DEADBAND_N (10)
      * altitude readings.  Once the window is full, a reading is suppressed
      * if the window range (max minus min) is within DEADBAND_FT (35ft) and
      * the new reading is also within DEADBAND_FT of the window minimum.  In
      * plain terms: if the last 10 readings are all hovering in a 35ft band
-     * and the new reading is in the same band, it is noise, not movement.</p>
+     * and the new reading is in the same band, it is noise, not movement.
      *
-     * <p>A suppressed point is not noise - it is a redundant position.
+     * A suppressed point is not noise - it is a redundant position.
      * Standing still on the rim of a crater is every bit as intentional as
      * walking toward it.  The deadband simply avoids writing the same
      * position repeatedly.  Notes always reset the deadband and are always
-     * written, so a stationary mark is never lost.</p>
+     * written, so a stationary mark is never lost.
      *
-     * <p>The window fills unconditionally - suppressed and unsuppressed
+     * The window fills unconditionally - suppressed and unsuppressed
      * readings both enter the window.  This is intentional: the window
-     * tracks what the GPS is actually reporting, not what was written.</p>
+     * tracks what the GPS is actually reporting, not what was written.
      *
-     * <p>N=10 and 35ft were field-tuned on the Big Island.  N=20 was too
+     * N=10 and 35ft were field-tuned on the Big Island.  N=20 was too
      * slow to react to real altitude changes.  N=5 overreacted to cell tower
      * altitude injection.  35ft covers typical stationary GPS drift without
-     * swallowing real elevation changes on Saddle Road.</p>
+     * swallowing real elevation changes on Saddle Road.
      *
-     * @param altFt altitude in feet.
-     * @return true if the point should be suppressed, false if it should
-     *         be written.
-     */
-    /**
-     * Returns true if the given fix should be suppressed by the live deadband
-     * filter.  Uses a 3D distance check across all three axes: N-S, E-W, and
-     * vertical.  A fix is suppressed only when the window is full AND every
-     * entry in the window is within DEADBAND_FT feet of the new fix in all
-     * three dimensions simultaneously.
-     /**
      * Returns true if the given fix should be suppressed by the live deadband
      * filter.  Answers the question "have I moved in the last DEADBAND_N seconds?"
      *
-     * <p>Horizontal comparison uses 5-decimal-place rounding on lat and lon.
+     * New June 9, 2026:
+     * Horizontal comparison uses 5-decimal-place rounding on lat and lon.
      * At 5 decimal places, 1 unit is ~3.6 feet at the equator and ~1.9 feet
      * at 57 deg N longitude.  This is sufficient to answer "have I moved"
      * without trig, constants, or projection math.  Altitude uses DEADBAND_FT
-     * directly since feet are already the right unit.</p>
+     * directly since feet are already the right unit.  Code simplicity wins.
      *
-     * <p>A fix is suppressed only when the window is full AND every entry in
+     * A fix is suppressed only when the window is full AND every entry in
      * the window has the same rounded lat, lon, and is within DEADBAND_FT of
-     * the current altitude.  Any difference in the last 60 seconds defeats
-     * the deadband.</p>
+     * the current altitude.  Any difference in the last 60 seconds, defeats
+     * the deadband suppression.
      *
      * @param lat   raw latitude in decimal degrees.
      * @param lon   raw longitude in decimal degrees.
@@ -1180,6 +1170,7 @@ public class LocationService extends Service {
     public void onCreate() {
         super.onCreate();
         instance = this;
+        MainActivity.locationService = this;
         client = LocationServices.getFusedLocationProviderClient(this);
     }
 
@@ -1219,7 +1210,6 @@ public class LocationService extends Service {
             } else {
                 startForeground(1, NotificationHelper.build(this));
             }
-            interval = 1000 ; //intent.getIntExtra("interval", 30_000); //30000 30_000
             consolidateOldFiles();
             scheduleTopOfHourRotation();
             scheduleNoon();

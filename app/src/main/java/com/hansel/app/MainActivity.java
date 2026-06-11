@@ -12,13 +12,13 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
 import android.view.View;
-import android.view.Window;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.Button;
@@ -27,13 +27,19 @@ import android.widget.TextView;
 import androidx.core.content.ContextCompat;
 
 import org.osmdroid.api.IGeoPoint;
+import org.osmdroid.config.Configuration;
 import org.osmdroid.events.MapListener;
 import org.osmdroid.events.ScrollEvent;
 import org.osmdroid.events.ZoomEvent;
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
 import org.osmdroid.util.GeoPoint;
+import org.osmdroid.views.overlay.Marker;
+import org.osmdroid.views.overlay.Polyline;
 import org.osmdroid.views.overlay.TilesOverlay;
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider;
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
+
+import java.io.File;
 
 /**
  * Hansel v0.986 main activity.
@@ -56,6 +62,7 @@ public class MainActivity extends Activity {
 
     public static WebView webView;
     public static org.osmdroid.views.MapView mapView;
+    public static LocationService locationService;
 
     private TextView replayPausedFloatie;
     //private SeekBar zoomSlider;
@@ -118,9 +125,18 @@ public class MainActivity extends Activity {
     private static final int    REPLAY_LINE_COLOR = Color.argb(127, 127, 100, 40);
     private static final float  REPLAY_LINE_WIDTH = 4f;
     private static final double GAP_METERS        = 1609.34;
-    //public Button btnMeRef;
+
     public TextView liveUpdatesPausedFloatie;
 
+    /**
+     * say() convenience debug method
+     */
+    public void say(String something) {
+        android.util.Log.d("Hansel", something);
+        if (locationService != null) {
+            locationService.say( something );
+        }
+    }
 
     /**
      *
@@ -160,8 +176,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        requestWindowFeature(Window.FEATURE_NO_TITLE);
-        android.util.Log.d("Hansel", "onCreate firing");
+        say("onCreate firing");
 
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
@@ -197,20 +212,20 @@ public class MainActivity extends Activity {
 
         // OSMDroid init
         initOsmdroid();
-        org.osmdroid.config.Configuration.getInstance()
+        Configuration.getInstance()
                 .setUserAgentValue(
                         "Hansel/0.986 personal field logger - single user, Kilauea HI");
         //cache for OSMDroid is not allowed to live on sdcard, so try this
-        org.osmdroid.config.Configuration.getInstance()
+        Configuration.getInstance()
                 .setOsmdroidBasePath(getFilesDir());
-        org.osmdroid.config.Configuration.getInstance()
-                .setOsmdroidTileCache(new java.io.File(getFilesDir(), "tiles"));
+        Configuration.getInstance()
+                .setOsmdroidTileCache(new File(getFilesDir(), "tiles"));
         mapView.setTileSource(
-                org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK);
+                TileSourceFactory.MAPNIK);
         mapView.setBuiltInZoomControls(false);
         mapView.setMultiTouchControls(true);
-        mapView.getController().setZoom(12);
-        mapView.getController().setCenter(new GeoPoint(19.402, -155.293));
+        mapView.getController().setZoom(14);
+        mapView.getController().setCenter(new GeoPoint(19.411411, -155.269269));
 
         mapView.getOverlayManager().getTilesOverlay()
                 .setColorFilter(TilesOverlay.INVERT_COLORS);
@@ -224,25 +239,46 @@ public class MainActivity extends Activity {
                 findViewById(R.id.liveUpdatesPausedFloatie);
 
         gpsInfoOverlay = findViewById(R.id.gpsInfoOverlay);
-        gpsInfoOverlay.setShadowLayer(2f, 1f, 1f, 0xFF000000);
-        gpsInfoOverlay.post(() -> {
+        //gpsInfoOverlay.setShadowLayer(2f, 1f, 1f, 0xFF000000);
+
+        skyBarBox = findViewById(R.id.skyBarBox);
+        skyBarBox.setShadowLayer(2f, 1f, 1f, 0xFF000000);
+
+        //Typeface courierPrime = getResources().getFont(R.font.courier_prime_regular);
+        //Typeface courierPrime = Typeface.createFromAsset(getAssets(), "courier_prime_regular.ttf");
+        Typeface courierPrime = Typeface.createFromAsset(getAssets(), "courier_prime_regular.ttf");
+        gpsInfoOverlay.setTypeface(courierPrime);
+        liveUpdatesPausedFloatie.setTypeface(courierPrime);
+        replayPausedFloatie.setTypeface(courierPrime);
+        skyBarBox.setTypeface(courierPrime);
+
+        say("FONT" + gpsInfoOverlay.getTypeface().toString());
+        //gpsInfoOverlay.post(() -> {
             if (gpsInfoOverlay.getLineHeight() > 0) {
                 overlayLines = gpsInfoOverlay.getHeight() / gpsInfoOverlay.getLineHeight();
             }
             if (gpsInfoOverlay.getPaint() != null && gpsInfoOverlay.getWidth() > 0) {
                 float charW = gpsInfoOverlay.getPaint().measureText("M");
+                float charsW =gpsInfoOverlay.getPaint().measureText("I");
+                if (charsW != charW) {
+                    say("Monospace font has been microsofted");
+                } else {
+                    say( "charsW " + charsW + " is good");
+                }
+
                 if (charW > 0) overlayChars = (int)(gpsInfoOverlay.getWidth() / charW);
             }
-        });
-
-        skyBarBox = findViewById(R.id.skyBarBox);
-        skyBarBox.setShadowLayer(2f, 1f, 1f, 0xFF000000);
+        //});
 
         Button btnMe      = findViewById(R.id.btnMe);
         Button btnHMM     = findViewById(R.id.btnHMM);
         Button btnZoomIn  = findViewById(R.id.btnZoomIn);
         Button btnZoomOut = findViewById(R.id.btnZoomOut);
-        //btnMeRef = btnMe;
+
+        btnMe.setTypeface(courierPrime);
+        btnHMM.setTypeface(courierPrime);
+        btnZoomIn.setTypeface(courierPrime);
+        btnZoomOut.setTypeface(courierPrime);
 
         // resumeLive: re-enable live map following.  Does NOT touch log files,
         // does NOT call JS stop() - that caused log rotation on every pan.
@@ -279,7 +315,19 @@ public class MainActivity extends Activity {
 
         // [HMM] - Halemaumau
         btnHMM.setOnClickListener(v -> {
+            replayFollowMode = false;
+            replayPausedFloatie.setVisibility(View.VISIBLE);
+
             mapView.getController().setZoom(14);
+
+            // adding a little debug info here because this is a relatively harmless
+            // place for it, that only appears AFTER all setup is definitely finished.
+            //I can re-trigger debug here as often as needed
+            //gpsInfoOverlay.setTypeface(Typeface.create("monospace", Typeface.NORMAL));
+            say( gpsInfoOverlay.getTypeface().toString() );
+            if (Build.VERSION.SDK_INT >= 34) {
+                say("hmm pressed " + gpsInfoOverlay.getTypeface().getSystemFontFamilyName() );
+            }
             mapView.getController().animateTo(new GeoPoint(19.411, -155.269 ));
         });
 
@@ -318,8 +366,9 @@ public class MainActivity extends Activity {
         mapView.addMapListener(new MapListener() {
             @Override
             public boolean onScroll(ScrollEvent event) {
+                liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
                 liveFollowMode = false;
-                if (btnMe != null) btnMe.setTextColor(Color.GRAY);
+                if (btnMe != null) btnMe.setTextColor(Color.BLACK);
                 // [HISTORY REPLAYING] only shown during replay, not during live pan
                 if (replayInProgress) {
                     replayFollowMode = false;
@@ -330,13 +379,17 @@ public class MainActivity extends Activity {
                 zoomerZoom = (int) Math.round(mapView.getZoomLevelDouble());
                 zoomerLat  = gs.getLatitude();
                 zoomerLon  = gs.getLongitude();
-                zoomerAlt  = 0;
+                zoomerAlt  = 0; //TODO get nearest 3 decimal lat,lon altitude or 4 decimal? From my collected data
                 rebuildGpsInfoOverlay();
                 return false;
             }
 
             @Override
             public boolean onZoom(ZoomEvent event) {
+                return false;
+                // zoom in or out is not the same as panning around
+                /*
+                liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
                 liveFollowMode = false;
                 if (btnMe != null) btnMe.setTextColor(Color.GRAY);
                 if (replayInProgress) {
@@ -351,6 +404,7 @@ public class MainActivity extends Activity {
                 zoomerAlt  = 0;
                 rebuildGpsInfoOverlay();
                 return false;
+                */
             }
         });
 
@@ -362,15 +416,15 @@ public class MainActivity extends Activity {
          */
 
         // replay overlays - added to map but empty until replay starts
-        replayPointsOverlay = new org.osmdroid.views.overlay.Polyline();
-        replayPointsOverlay.setColor(Color.argb(180, 255, 165, 0)); // orange trail
+        replayPointsOverlay = new Polyline();
+        replayPointsOverlay.setColor(Color.argb(180, 255, 165, 0)); // ugly orange trail
         replayPointsOverlay.setWidth(4f);
         mapView.getOverlays().add(replayPointsOverlay);
 
-        replayHeadMarker = new org.osmdroid.views.overlay.Marker(mapView);
+        replayHeadMarker = new Marker(mapView);
         replayHeadMarker.setAnchor(
-                org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
-                org.osmdroid.views.overlay.Marker.ANCHOR_CENTER);
+                Marker.ANCHOR_CENTER,
+                Marker.ANCHOR_CENTER);
         mapView.getOverlays().add(replayHeadMarker);
 
         // WebView init
@@ -406,7 +460,9 @@ public class MainActivity extends Activity {
             webView.loadUrl("file:///android_asset/index.html");
             startLoggingDefault();
         }
+
         initOsmdroid();
+
     }
 
     /*
@@ -432,6 +488,9 @@ public class MainActivity extends Activity {
      * point and starts a fresh segment - map does not follow across
      * the gap.  Enforces MAX_REPLAY_POINTS by removing the oldest
      * segment when exceeded.
+     *
+     * TODO rewrite whole thing, I hate the tracking lines, just use
+     *  dots along the breadcrumb path, its in the name for goodness sake.
      *
      * @param data JSON string from JS, contains t, lat, lon, etc.
      */
@@ -951,7 +1010,6 @@ public class MainActivity extends Activity {
              * The OpenStreetMap.anDroid cache stuff
              */
             initOsmdroid();
-
         }
     }
 
@@ -966,7 +1024,7 @@ public class MainActivity extends Activity {
      */
     private void startLoggingDefault() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        int interval = prefs.getInt("last_interval", 1000); //30_000 30000
+        int interval = prefs.getInt("last_interval", 30000); //30_000 30000
         Intent i = new Intent(this, LocationService.class);
         i.putExtra("interval", interval);
         i.putExtra("rollover", 3600);
@@ -1199,7 +1257,7 @@ public class MainActivity extends Activity {
      * skyBarBox is updated separately by updateSkyOverlay().
      *
      * gpsInfoOverlay layout (zero-based):
-     *   0: "Hansel v0.987" left, zoomerLine right-justified with monospace spaces
+     *   0: "Hansel v0.986" left, zoomerLine right-justified with monospace spaces
      *   1: mostCurrentGPS (timestamp first, lat, lon, alt, spd)
      */
     public static void rebuildGpsInfoOverlay() {
@@ -1212,7 +1270,7 @@ public class MainActivity extends Activity {
         String zoomer = String.format(java.util.Locale.US,
                 "%.6f %.6f %s Z:%d",
                 zoomerLat, zoomerLon, altStr, zoomerZoom);
-        String label = "Hansel v0.987";
+        String label = "Hansel v0.986";
         // pad between label and zoomer to fill overlayChars
         int spaces = Math.max(1, overlayChars - label.length() - zoomer.length());
         StringBuilder pad = new StringBuilder();
