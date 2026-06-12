@@ -33,7 +33,7 @@
             android:layout_marginStart="6dp"
             android:layout_marginBottom="0dp"
             android:layout_marginEnd="6dp"
-            android:textColor="#FFAAAAAA"
+            android:textColor="#FFFFFFFF"
             android:background="#4F000000"
             android:textSize="10sp"
             android:fontFamily="monospace"
@@ -54,7 +54,7 @@
             android:layout_marginBottom="6dp"
             android:layout_marginEnd="6dp"
             android:background="#4F000000"
-            android:textColor="#FFAAAAAA"
+            android:textColor="#FFFFFFFF"
             android:textSize="10sp"
             android:fontFamily="monospace"
             android:typeface="monospace"
@@ -84,7 +84,7 @@
                 android:paddingBottom="4dp"
                 android:layout_marginEnd="4dp"
                 android:background="#CC000000"
-                android:textColor="#FFAAAAAA"
+                android:textColor="#FFFFFFFF"
                 android:textSize="8sp"
                 android:textStyle="bold" />
 

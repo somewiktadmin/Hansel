@@ -181,6 +181,10 @@
             let isRunning = false;
             let lastMarkTime = 0;
 
+            let replayLines = [];   // was allLines, now module-level
+            let replayIndex = 0;    // was i, now module-level
+            let replaySpeed = 1;    // was local, now module-level
+
             const map = document.getElementById("map");
             const mctx = map.getContext("2d");
             const graph = document.getElementById("graph");
@@ -569,7 +573,7 @@
                     let xy = latLonToXY(p.lat, p.lon);
                     mctx.fillStyle = color(p.acc);
                     mctx.beginPath();
-                    mctx.arc(xy.x, xy.y, 3, 0, Math.PI * 2);
+                    mctx.arc(xy.x, xy.y, 2, 0, Math.PI * 2);
                     mctx.fill();
                 }
             }
@@ -851,17 +855,15 @@
              */
             function stop() {
                 if (isReplaying) {
-                    clearInterval(replayInterval);
-                    replayInterval = null;
-                    isReplaying = false;
-                    document.getElementById("status").innerText = "Replay stopped";
+                    // Java calls evaluateJavascript("stopReplay()") from
+                    // [HISTORY REPLAYING] button - but STOP button also works.
+                    stopReplay();
                     return;
-                } else {
-                    if (typeof AndroidBridge !== "undefined") {
-                        let newFile = AndroidBridge.rotateNow();
-                        say("New file: " + newFile);
-                        document.getElementById("status").innerText = "Running";
-                    }
+                }
+                if (typeof AndroidBridge !== "undefined") {
+                    let newFile = AndroidBridge.rotateNow();
+                    say("New file: " + newFile);
+                    document.getElementById("status").innerText = "Running";
                 }
             }
 
@@ -890,6 +892,64 @@
                 AndroidBridge.replayPoint(JSON.stringify(d));
             }
 
+
+            // Shared interval body used by replay(), resumeReplay().
+            function startReplayInterval() {
+                replayInterval = setInterval(() => {
+                    if (replayIndex >= replayLines.length) {
+                        clearInterval(replayInterval);
+                        replayInterval = null;
+                        isReplaying = false;
+                        say("Replay complete");
+                        AndroidBridge.replayComplete();
+                        return;
+                    }
+                    // skip identical consecutive points - same lat, lon, alt
+                    let line = replayLines[replayIndex];
+                    replayIndex++;
+                    try {
+                        let d = JSON.parse(line);
+                        if (d.t) {
+                            // deadband: skip if identical to previous point
+                            let prev = points[points.length - 1];
+                            if (prev &&
+                                prev.lat === fmtLatLon(d.lat) &&
+                                prev.lon === fmtLatLon(d.lon) &&
+                                Math.round(d.alt * 10) / 10 === prev.alt) {
+                                return; // identical, skip silently
+                            }
+                        }
+                        replayPoint(line);
+                    } catch (e) {
+                        say("replay err line " + replayIndex + ": " + e.message);
+                    }
+                }, replaySpeed);
+            }
+
+            function pauseReplay() {
+                if (replayInterval === null) return;
+                clearInterval(replayInterval);
+                replayInterval = null;
+                say("Replay paused");
+            }
+
+            function resumeReplay() {
+                if (!isReplaying) return;
+                if (replayInterval !== null) return;
+                startReplayInterval();
+                say("Replay resumed");
+            }
+
+            function stopReplay() {
+                clearInterval(replayInterval);
+                replayInterval = null;
+                isReplaying = false;
+                replayLines = [];
+                replayIndex = 0;
+                say("Replay stopped");
+                AndroidBridge.replayComplete();
+            }
+
             /**
              * Replays all files currently in the working directory.
              * Reads every file via AndroidBridge.getFileList() and
@@ -903,43 +963,26 @@
              *       monthly rollup files.  Replay of a monthly file works
              *       but can be very slow at 1ms intervals.
              */
-            function replay() {
+             function replay() {
                 let fileList = JSON.parse(AndroidBridge.getFileList());
-
                 document.getElementById("status").scrollIntoView();
-                if (!fileList.length) {
-                    say("No files found");
-                    return;
-                }
+                if (!fileList.length) { say("No files found"); return; }
 
-                isReplaying = true;
-
-                let speed = parseInt(document.getElementById("replaySpeed").value);
-                let allLines = [];
-
+                replayLines = [];
                 for (let path of fileList) {
                     say("Reading " + path);
                     let contents = AndroidBridge.readFile(path);
                     let lines = contents.split("\n").filter((l) => l.trim());
-                    allLines = allLines.concat(lines);
+                    replayLines = replayLines.concat(lines);
                 }
 
-                let i = 0;
-                replayInterval = setInterval(() => {
-                    if (i >= allLines.length) {
-                        clearInterval(replayInterval);
-                        isReplaying = false;
-                        say("Replay done");
-                        return;
-                    }
-                    try {
-                        replayPoint(allLines[i]);
-                    } catch (e) {
-                        say("replay err line " + i + ": " + e.message);
-                    }
-                    i++;
-                }, speed);
+                replayIndex = 0;
+                replaySpeed = parseInt(document.getElementById("replaySpeed").value);
+                isReplaying = true;
+                AndroidBridge.replayStarting();
+                startReplayInterval();
             }
+
 
             /**
              * Replays only files from the last 72 hours.
@@ -952,66 +995,46 @@
              * files older than 72 hours may already be consumed into the
              * monthly rollup and unavailable here.
              */
-            function replay72h() {
-                let fileList = JSON.parse(AndroidBridge.getFileList());
+             function replay72h() {
+                    let fileList = JSON.parse(AndroidBridge.getFileList());
+                    document.getElementById("status").scrollIntoView();
+                    if (!fileList.length) { say("No files found"); return; }
 
-                document.getElementById("status").scrollIntoView();
-                if (!fileList.length) {
-                    say("No files found");
-                    return;
-                }
+                    let cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000);
+                    let pad = (n) => String(n).padStart(2, "0");
+                    let cutoffStr =
+                        cutoff.getFullYear() + "-" +
+                        pad(cutoff.getMonth() + 1) + "-" +
+                        pad(cutoff.getDate()) + "_" +
+                        pad(cutoff.getHours()) + "-" +
+                        pad(cutoff.getMinutes()) + "-" +
+                        pad(cutoff.getSeconds());
 
-                // cutoff: 72 hours ago, formatted as yyyy-MM-dd_HH-mm-ss for string compare
-                let cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000);
-                let pad = (n) => String(n).padStart(2, "0");
-                let cutoffStr =
-                    cutoff.getFullYear() + "-" +
-                    pad(cutoff.getMonth() + 1) + "-" +
-                    pad(cutoff.getDate()) + "_" +
-                    pad(cutoff.getHours()) + "-" +
-                    pad(cutoff.getMinutes()) + "-" +
-                    pad(cutoff.getSeconds());
+                    let recent = fileList.filter(path => {
+                        let name = path.substring(path.lastIndexOf("/") + 1);
+                        if (name.match(/^\d{4}-\d{2}-00_/)) return false;
+                        return name >= cutoffStr;
+                    });
 
-                // skip monthly rollup files (day = 00) and anything older than cutoff
-                let recent = fileList.filter(path => {
-                    let name = path.substring(path.lastIndexOf("/") + 1);
-                    if (name.match(/^\d{4}-\d{2}-00_/)) return false;
-                    return name >= cutoffStr;
-                });
+                    say("replay72h: " + recent.length + " files after " + cutoffStr);
+                    if (!recent.length) { say("No files in last 72h"); return; }
 
-                say("replay72h: " + recent.length + " files after " + cutoffStr);
-
-                if (!recent.length) {
-                    say("No files in last 72h");
-                    return;
-                }
-
-                isReplaying = true;
-                let speed = parseInt(document.getElementById("replaySpeed").value);
-                let allLines = [];
-
-                for (let path of recent) {
-                    let contents = AndroidBridge.readFile(path);
-                    let lines = contents.split("\n").filter((l) => l.trim());
-                    allLines = allLines.concat(lines);
-                }
-
-                let i = 0;
-                replayInterval = setInterval(() => {
-                    if (i >= allLines.length) {
-                        clearInterval(replayInterval);
-                        isReplaying = false;
-                        say("replay72h done");
-                        return;
+                    replayLines = [];
+                    for (let path of recent) {
+                        let contents = AndroidBridge.readFile(path);
+                        let lines = contents.split("\n").filter((l) => l.trim());
+                        replayLines = replayLines.concat(lines);
                     }
-                    try {
-                        replayPoint(allLines[i]);
-                    } catch (e) {
-                        say("replay72h err line " + i + ": " + e.message);
-                    }
-                    i++;
-                }, speed);
-            }
+
+                    replayIndex = 0;
+                    replaySpeed = parseInt(document.getElementById("replaySpeed").value);
+                    isReplaying = true;
+                    AndroidBridge.replayStarting();
+                    startReplayInterval();
+                }
+
+
+
 
             // Entry point.  Everything that touches the DOM or depends on
             // layout runs from here, after the browser guarantees layout is complete.

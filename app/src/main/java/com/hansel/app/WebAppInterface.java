@@ -58,6 +58,10 @@ public class WebAppInterface {
      */
     public WebAppInterface(Context context) { this.context = context; }
 
+    /**
+     * Javascript [REPLAY] and [72h] send this GeoPoint() to mapView to be plotted
+     * @param data
+     */
     @android.webkit.JavascriptInterface
     public void replayPoint(String data) {
         MainActivity.handleReplayPoint(data);
@@ -325,4 +329,34 @@ public class WebAppInterface {
             return "";
         }
     }
+
+
+
+    /**
+     * Called from JS replay() and replay72h() before interval starts.
+     * Single source of truth for replayInProgress = true.
+     */
+    @JavascriptInterface
+    public void replayStarting() {
+        ((android.app.Activity) context).runOnUiThread(() -> {
+            MainActivity.replayInProgress = true;
+            MainActivity.replayFollowMode = true;
+            MainActivity.liveFollowMode   = false;
+            MainActivity.replayPausedFloatie
+                    .setVisibility(android.view.View.GONE);
+            MainActivity.liveUpdatesPausedFloatie
+                    .setVisibility(android.view.View.VISIBLE);
+        });
+    }
+
+    /**
+     * Called from JS stopReplay() and natural interval exhaustion.
+     * Runs resumeLive to restore live following and clear floaties.
+     */
+    @JavascriptInterface
+    public void replayComplete() {
+        ((android.app.Activity) context).runOnUiThread(
+                MainActivity::resumeLive);
+    }
+
 }

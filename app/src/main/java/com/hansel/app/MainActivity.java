@@ -34,7 +34,6 @@ import org.osmdroid.events.ZoomEvent;
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.overlay.Marker;
-import org.osmdroid.views.overlay.Polyline;
 import org.osmdroid.views.overlay.TilesOverlay;
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider;
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
@@ -64,9 +63,9 @@ public class MainActivity extends Activity {
     public static org.osmdroid.views.MapView mapView;
     public static LocationService locationService;
 
-    private TextView replayPausedFloatie;
-    //private SeekBar zoomSlider;
-    //private boolean sliderTracking = false; // suppress map->slider echo
+    public static  TextView replayPausedFloatie;
+    //public static  SeekBar zoomSlider;
+    //public static  boolean sliderTracking = false; // suppress map->slider echo
 
     // At Hansel v1 and 0.94, started using the number 1094
     private static final int REQUEST_TREE = 1094;
@@ -78,55 +77,62 @@ public class MainActivity extends Activity {
     static final String PREF_TILE_URI = "3rd tile cache layer"; // supplemental tile cache on SD card
     static final String PREF_SPOOL_URI= "cloud uploads"; // cloud upload spool directory
 
-    private MyLocationNewOverlay locationOverlay;
+    public static MyLocationNewOverlay locationOverlay;
     //private CompassOverlay compassOverlay;
 
     public static TextView gpsInfoOverlay;
     public static TextView skyBarBox;
 
     /** Cached center overlay data - updated on pan/zoom/replay. */
-    private static double zoomerLat  = 0;
-    private static double zoomerLon  = 0;
-    private static double zoomerAlt  = 0;
-    private static int    zoomerZoom = 0;
+    public static double zoomerLat  = 0;
+    public static double zoomerLon  = 0;
+    public static double zoomerAlt  = 0;
+    public static int    zoomerZoom = 0;
+
+    public static Button btnMe;
+    public static Button btnHMM;
+    public static Button btnZoomIn;
+    public static Button btnZoomOut;
 
     /** Cached status overlay data - updated 1Hz from handleLocation(). */
-    private static String statusLine1 = "";
+    public static String statusLine1 = "";
 
     /** Sky bar header line - constant, 3 leading spaces align DD| prefix. */
-    private static final String SKY_HEADER = "   12    16    20    00    04    08    12";
+    public static final String SKY_HEADER = "   12    16    20    00    04    08    12";
 
     /** Usable line count in gpsInfoOverlay - measured after layout. */
-    private static int overlayLines = 21;
+    public static int overlayLines = 21;
     /** Usable character width of gpsInfoOverlay - measured after layout. */
-    private static int overlayChars = 40;
+    public static int overlayChars = 40;
 
-    private static boolean replayFollowMode = true;
+    public static boolean replayFollowMode = true;
 
     // cached values - recalculate only when date changes
-    private static String lastCalcDate = "";
-    private static String cachedMoon   = "";
-    private static String[] cachedSun  = new String[6];
+    public static String lastCalcDate = "";
+    public static String cachedMoon   = "";
+    public static String[] cachedSun  = new String[6];
 
     public static boolean updatingMap = false;
     public static boolean replayInProgress = false;
 
-    private static org.osmdroid.views.overlay.Polyline replayPointsOverlay;
-    private static org.osmdroid.views.overlay.Marker   replayHeadMarker;
-    private static boolean  liveFollowMode  = true;
-    private static GeoPoint lastReplayPoint = null;
-    private static int      replayPointCount = 0;
-    private static java.util.List<org.osmdroid.views.overlay.Polyline>
-            replaySegments = new java.util.ArrayList<>();
-    private static java.util.List<org.osmdroid.views.overlay.Marker>
-            replayGapDots  = new java.util.ArrayList<>();
+    public static org.osmdroid.views.overlay.Marker   replayHeadMarker;
+    public static boolean  liveFollowMode  = true;
 
-    private static final int    MAX_REPLAY_POINTS = 2500;
-    private static final int    REPLAY_LINE_COLOR = Color.argb(127, 127, 100, 40);
-    private static final float  REPLAY_LINE_WIDTH = 4f;
-    private static final double GAP_METERS        = 1609.34;
+    public static TextView liveUpdatesPausedFloatie;
 
-    public TextView liveUpdatesPausedFloatie;
+    private static android.graphics.drawable.Drawable replayDotDrawable = null;
+
+    public static boolean programmingScroll = false; //for animateTo() scrolling
+
+    // breadcrumb dot color - toasted white bread gold
+    private static final int REPLAY_DOT_COLOR = 0xFFD4A017;
+
+    // TODO: make this a SharedPreferences user setting, range 100-50000
+    private static final int MAX_REPLAY_POINTS = 2500;
+
+    // tracks all breadcrumb dot markers for pruning and clearing
+    private static final java.util.List<org.osmdroid.views.overlay.Marker>
+            replayDots = new java.util.ArrayList<>();
 
     /**
      * say() convenience debug method
@@ -270,66 +276,59 @@ public class MainActivity extends Activity {
             }
         //});
 
-        Button btnMe      = findViewById(R.id.btnMe);
-        Button btnHMM     = findViewById(R.id.btnHMM);
-        Button btnZoomIn  = findViewById(R.id.btnZoomIn);
-        Button btnZoomOut = findViewById(R.id.btnZoomOut);
+        btnMe      = findViewById(R.id.btnMe);
+        btnHMM     = findViewById(R.id.btnHMM);
+        btnZoomIn  = findViewById(R.id.btnZoomIn);
+        btnZoomOut = findViewById(R.id.btnZoomOut);
 
         btnMe.setTypeface(courierPrime);
         btnHMM.setTypeface(courierPrime);
         btnZoomIn.setTypeface(courierPrime);
         btnZoomOut.setTypeface(courierPrime);
 
-        // resumeLive: re-enable live map following.  Does NOT touch log files,
-        // does NOT call JS stop() - that caused log rotation on every pan.
-        // Replay is stopped by setting replayInProgress=false only; the JS
-        // replay interval will exhaust naturally or be stopped separately.
-        Runnable resumeLive = () -> {
-            replayInProgress = false;
-            replayFollowMode = true;
-            liveFollowMode   = true;
-            btnMe.setTextColor(Color.GREEN);
-            liveUpdatesPausedFloatie.setVisibility(View.GONE);
-            replayPausedFloatie.setVisibility(View.GONE);
-            if (locationOverlay.getMyLocation() != null) {
-                mapView.getController().setZoom(15);
-                mapView.getController().animateTo(
-                        locationOverlay.getMyLocation());
-            }
-        };
-
         // [ME] - resume live follow, stop replay, snap to phone position
-        btnMe.setOnClickListener(v -> resumeLive.run());
+        btnMe.setOnClickListener(v -> resumeLive());
 
         // gpsInfoOverlay tap - same as [ME]
-        gpsInfoOverlay.setOnClickListener(v -> resumeLive.run());
+        gpsInfoOverlay.setOnClickListener(v -> resumeLive());
 
-        // [HISTORY REPLAYING] tap - same as [ME]
-        liveUpdatesPausedFloatie.setOnClickListener(v -> resumeLive.run());
+        // [HISTORY REPLAYING] tap - stop replay:
+        liveUpdatesPausedFloatie.setOnClickListener(v -> {
+            if (replayInProgress) {
+                webView.post(() ->
+                    webView.evaluateJavascript("stopReplay()", null) );
+            } else {
+                resumeLive();
+            }
+        });
 
-        // [REPLAY PAUSED] tap - resume replay follow only, live stays paused
+        // [REPLAY PAUSED] tap - resume replay:
         replayPausedFloatie.setOnClickListener(v -> {
             replayFollowMode = true;
             replayPausedFloatie.setVisibility(View.GONE);
+            webView.post(() ->
+                webView.evaluateJavascript("resumeReplay()", null) );
         });
 
         // [HMM] - Halemaumau
         btnHMM.setOnClickListener(v -> {
-            replayFollowMode = false;
-            replayPausedFloatie.setVisibility(View.VISIBLE);
+            if (replayInProgress) {
+                replayFollowMode = false;
+                replayPausedFloatie.setVisibility(View.VISIBLE);
+                webView.post(() -> webView.evaluateJavascript("pauseReplay()", null));
+            }
 
             mapView.getController().setZoom(14);
-
             // adding a little debug info here because this is a relatively harmless
             // place for it, that only appears AFTER all setup is definitely finished.
             //I can re-trigger debug here as often as needed
-            //gpsInfoOverlay.setTypeface(Typeface.create("monospace", Typeface.NORMAL));
-            say( gpsInfoOverlay.getTypeface().toString() );
-            //selectTileCacheFolder();
+            say(gpsInfoOverlay.getTypeface().toString());
             if (Build.VERSION.SDK_INT >= 34) {
-                say("hmm pressed " + gpsInfoOverlay.getTypeface().getSystemFontFamilyName() );
+                say("hmm pressed " + gpsInfoOverlay.getTypeface().getSystemFontFamilyName());
             }
-            mapView.getController().animateTo(new GeoPoint(19.411, -155.269 ));
+            programmingScroll = true;
+            //mapView.getController().animateTo(new GeoPoint(19.411, -155.269));
+            mapView.getController().setCenter(new GeoPoint(19.411, -155.269));
         });
 
         // [+] and [-] step zoom by 1
@@ -367,6 +366,10 @@ public class MainActivity extends Activity {
         mapView.addMapListener(new MapListener() {
             @Override
             public boolean onScroll(ScrollEvent event) {
+                if (programmingScroll) {
+                    programmingScroll = false;
+                    return false;
+                }
                 liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
                 liveFollowMode = false;
                 if (btnMe != null) btnMe.setTextColor(Color.BLACK);
@@ -375,6 +378,8 @@ public class MainActivity extends Activity {
                     replayFollowMode = false;
                     liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
                     replayPausedFloatie.setVisibility(View.VISIBLE);
+                    webView.post(() ->
+                        webView.evaluateJavascript("pauseReplay()", null) );
                 }
                 IGeoPoint gs = mapView.getMapCenter();
                 zoomerZoom = (int) Math.round(mapView.getZoomLevelDouble());
@@ -392,7 +397,7 @@ public class MainActivity extends Activity {
                 /*
                 liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
                 liveFollowMode = false;
-                if (btnMe != null) btnMe.setTextColor(Color.GRAY);
+                if (btnMe != null) btnMe.setTextColor(Color.WHITE);
                 if (replayInProgress) {
                     replayFollowMode = false;
                     liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
@@ -409,6 +414,8 @@ public class MainActivity extends Activity {
             }
         });
 
+
+
         /*
         compassOverlay = new CompassOverlay(
                 this, new InternalCompassOrientationProvider(this), mapView);
@@ -417,10 +424,6 @@ public class MainActivity extends Activity {
          */
 
         // replay overlays - added to map but empty until replay starts
-        replayPointsOverlay = new Polyline();
-        replayPointsOverlay.setColor(Color.argb(180, 255, 165, 0)); // ugly orange trail
-        replayPointsOverlay.setWidth(4f);
-        mapView.getOverlays().add(replayPointsOverlay);
 
         replayHeadMarker = new Marker(mapView);
         replayHeadMarker.setAnchor(
@@ -466,6 +469,26 @@ public class MainActivity extends Activity {
 
     }
 
+
+
+    /**
+     * todo
+     */
+    private static android.graphics.drawable.Drawable getReplayDot() {
+        if (replayDotDrawable != null) return replayDotDrawable;
+        android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(
+                8, 8, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas c = new android.graphics.Canvas(bm);
+        android.graphics.Paint p = new android.graphics.Paint(
+                android.graphics.Paint.ANTI_ALIAS_FLAG);
+        p.setColor(REPLAY_DOT_COLOR);
+        c.drawCircle(4, 4, 2f, p);
+        replayDotDrawable = new android.graphics.drawable.BitmapDrawable(
+                mapView.getResources(), bm);
+        return replayDotDrawable;
+    }
+
+
     /*
      * Syncs the zoom slider thumb to the current map zoom level.
      * No-op while the user is actively dragging the slider (sliderTracking == true)
@@ -481,6 +504,67 @@ public class MainActivity extends Activity {
      */
 
 
+    // resumeLive: re-enable live map following.  Does NOT touch log files,
+    // does NOT call JS stop() - that caused log rotation on every pan.
+    // Replay is stopped by setting replayInProgress=false only; the JS
+    // replay interval will exhaust naturally or be stopped separately.
+    public static void resumeLive() {
+        replayInProgress = false;
+        replayFollowMode = true;
+        liveFollowMode   = true;
+        btnMe.setTextColor(Color.GREEN);
+        liveUpdatesPausedFloatie.setVisibility(View.GONE);
+        replayPausedFloatie.setVisibility(View.GONE);
+        if (locationOverlay.getMyLocation() != null) {
+            mapView.getController().setZoom(15);
+            programmingScroll = true;
+            //mapView.getController().animateTo( locationOverlay.getMyLocation() );
+            mapView.getController().setCenter( locationOverlay.getMyLocation() );
+        }
+    }
+
+    /**
+     * "Don't jump when not nearby"
+     *
+     * Returns true if the last 2 replay points are "nearby" the given point -
+     * defined as matching truncated lat and lon to 3 decimal places.
+     * Used to gate animateTo() so we only follow when the device is holding still.
+     */
+    private static boolean replayIsNearby(GeoPoint pt) {
+        if (replayDots.size() < 2) return false;
+        String tLat = truncate3(pt.getLatitude());
+        String tLon = truncate3(pt.getLongitude());
+        // check last 2 dots
+        for (int i = replayDots.size() - 2; i < replayDots.size(); i++) {
+            GeoPoint p = replayDots.get(i).getPosition();
+            if (!truncate3(p.getLatitude()).equals(tLat)) return false;
+            if (!truncate3(p.getLongitude()).equals(tLon)) return false;
+        }
+        return true;
+    }
+
+    private static String truncate3(double v) {
+        // truncate to 3 decimal places without rounding
+        long shifted = (long)(v * 1000);
+        return Long.toString(shifted);
+    }
+
+    /**
+     * Creates a filled circle bitmap for breadcrumb dots.
+     * Toasted-bread gold, fixed screen size, zoom-invariant.
+     *
+    private static android.graphics.drawable.Drawable makeReplayDot() {
+        android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(
+                10, 10, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas c = new android.graphics.Canvas(bm);
+        android.graphics.Paint p = new android.graphics.Paint(
+                android.graphics.Paint.ANTI_ALIAS_FLAG);
+        p.setColor(REPLAY_DOT_COLOR);
+        c.drawCircle(5, 5, 3.5f, p);
+        return new android.graphics.drawable.BitmapDrawable(
+                mapView.getResources(), bm);
+    }
+     */
 
     /**
      * Called from WebAppInterface.replayPoint() on each replay step.
@@ -490,80 +574,60 @@ public class MainActivity extends Activity {
      * the gap.  Enforces MAX_REPLAY_POINTS by removing the oldest
      * segment when exceeded.
      *
-     * TODO rewrite whole thing, I hate the tracking lines, just use
-     *  dots along the breadcrumb path, its in the name for goodness sake.
+     * Handles a single replay point from JS.
+     * Plots a breadcrumb dot, prunes oldest if over MAX_REPLAY_POINTS,
+     * and follows only when last 2 points are nearby (5 decimal truncation).
      *
      * @param data JSON string from JS, contains t, lat, lon, etc.
      */
     public static void handleReplayPoint(String data) {
-        try {
-            org.json.JSONObject d = new org.json.JSONObject(data);
-            if (!d.has("t")) return;
-            double lat = d.getDouble("lat");
-            double lon = d.getDouble("lon");
-            GeoPoint pt = new GeoPoint(lat, lon);
-            boolean gap = false;
+        mapView.post(() -> {
+            try {
+                org.json.JSONObject d = new org.json.JSONObject(data);
+                if (!d.has("t")) return;
+                double lat = d.getDouble("lat");
+                double lon = d.getDouble("lon");
+                GeoPoint pt = new GeoPoint(lat, lon);
 
-            if (lastReplayPoint != null) {
-                double dist = pt.distanceToAsDouble(lastReplayPoint);
-                if (dist > GAP_METERS) {
-                    gap = true;
-                    org.osmdroid.views.overlay.Marker dot =
-                            new org.osmdroid.views.overlay.Marker(mapView);
-                    dot.setPosition(pt);
-                    dot.setAnchor(
-                            org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
-                            org.osmdroid.views.overlay.Marker.ANCHOR_CENTER);
-                    dot.setIcon(makeGapDot());
-                    dot.setTitle("");
-                    mapView.getOverlays().add(dot);
-                    replayGapDots.add(dot);
-                    startNewReplaySegment();
+                // plot breadcrumb dot
+                org.osmdroid.views.overlay.Marker dot =
+                        new org.osmdroid.views.overlay.Marker(mapView);
+                dot.setPosition(pt);
+                dot.setAnchor(
+                        org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
+                        org.osmdroid.views.overlay.Marker.ANCHOR_CENTER);
+                dot.setIcon(getReplayDot());
+                dot.setTitle("");
+                mapView.getOverlays().add(dot);
+                replayDots.add(dot);
+
+                // prune oldest dot if over limit
+                if (replayDots.size() > MAX_REPLAY_POINTS) {
+                    org.osmdroid.views.overlay.Marker oldest = replayDots.remove(0);
+                    mapView.getOverlays().remove(oldest);
                 }
+
+                replayHeadMarker.setPosition(pt);
+
+                if (replayFollowMode && replayIsNearby(pt)) {
+                    programmingScroll = true;
+                    //mapView.getController().animateTo(pt);
+                    mapView.getController().setCenter(pt);
+                }
+
+                mapView.invalidate();
+                zoomerLat = lat;
+                zoomerLon = lon;
+                zoomerAlt = d.optDouble("alt", 0);
+                zoomerZoom = (int) Math.round(mapView.getZoomLevelDouble());
+                rebuildGpsInfoOverlay();
+                updateSkyOverlay(d.getString("t").substring(0, 10));
+
+            } catch (Exception e) {
+                android.util.Log.e("Hansel",
+                        "replayPoint error: " + e.getMessage());
             }
-
-            replayPointsOverlay.addPoint(pt);
-            lastReplayPoint = pt;
-            replayPointCount++;
-
-            if (replayPointCount > MAX_REPLAY_POINTS
-                    && !replaySegments.isEmpty()) {
-                org.osmdroid.views.overlay.Polyline oldest =
-                        replaySegments.remove(0);
-                replayPointCount -= oldest.getActualPoints().size();
-                mapView.getOverlays().remove(oldest);
-            }
-
-            replayHeadMarker.setPosition(pt);
-
-            if (replayFollowMode && !gap) {
-                mapView.getController().animateTo(pt);
-            }
-
-            mapView.invalidate();
-            zoomerLat  = lat;
-            zoomerLon  = lon;
-            zoomerAlt  = d.optDouble("alt", 0);
-            zoomerZoom = (int) Math.round(mapView.getZoomLevelDouble());
-            rebuildGpsInfoOverlay();
-            updateSkyOverlay(d.getString("t").substring(0, 10));
-
-        } catch (Exception e) {
-            android.util.Log.e("Hansel",
-                    "replayPoint error: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Starts a fresh polyline segment and tracks it in replaySegments.
-     * Call once from onCreate() to initialize, then on each gap.
-     */
-    private static void startNewReplaySegment() {
-        replayPointsOverlay = new org.osmdroid.views.overlay.Polyline();
-        replayPointsOverlay.setColor(REPLAY_LINE_COLOR);
-        replayPointsOverlay.setWidth(REPLAY_LINE_WIDTH);
-        mapView.getOverlays().add(replayPointsOverlay);
-        replaySegments.add(replayPointsOverlay);
+        }); //evil post()
     }
 
     /**
@@ -571,37 +635,16 @@ public class MainActivity extends Activity {
      * Call on stop, rewind, or new file load.
      */
     public static void clearReplay() {
-        for (org.osmdroid.views.overlay.Polyline seg : replaySegments) {
-            mapView.getOverlays().remove(seg);
-        }
-        replaySegments.clear();
-        for (org.osmdroid.views.overlay.Marker dot : replayGapDots) {
+        for (org.osmdroid.views.overlay.Marker dot : replayDots) {
             mapView.getOverlays().remove(dot);
         }
-        replayGapDots.clear();
-        replayPointCount = 0;
-        lastReplayPoint  = null;
-        liveFollowMode   = true;
-        startNewReplaySegment();
+        replayDots.clear();
+        liveFollowMode = true;
         mapView.invalidate();
     }
 
-    /**
-     * Creates a filled circle bitmap for gap dot markers.
-     * 3px radius matches JS arc() dot.  12x12 bitmap for clean edges.
-     * Fixed screen size, zoom-invariant.
-     */
-    private static android.graphics.drawable.Drawable makeGapDot() {
-        android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(
-                12, 12, android.graphics.Bitmap.Config.ARGB_8888);
-        android.graphics.Canvas c = new android.graphics.Canvas(bm);
-        android.graphics.Paint p = new android.graphics.Paint(
-                android.graphics.Paint.ANTI_ALIAS_FLAG);
-        p.setColor(REPLAY_LINE_COLOR);
-        c.drawCircle(6, 6, 3, p);
-        return new android.graphics.drawable.BitmapDrawable(
-                mapView.getResources(), bm);
-    }
+
+
 
     @Override
     public void onResume() {
@@ -1280,7 +1323,7 @@ public class MainActivity extends Activity {
 
         String gpsText = line0 + "\n" + statusLine1;
 
-        int color = liveFollowMode ? Color.GREEN : Color.GRAY;
+        int color = liveFollowMode ? Color.GREEN : Color.WHITE;
         gpsInfoOverlay.post(() -> {
             gpsInfoOverlay.setText(gpsText);
             gpsInfoOverlay.setTextColor(color);
