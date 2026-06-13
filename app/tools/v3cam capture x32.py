@@ -8,15 +8,15 @@ from zoneinfo import ZoneInfo
 
 # ---------------------------------------------------------------------------
 # USAGE
-#   python kilauea.py [cam] [mode]
+#   python vXcam_capture_v06.py [cam] [mode]
 #   cam  : v3 (default) or v1
 #   mode : fast (default) or normal
 #
 # Examples:
-#   python kilauea.py              # v3 fast
-#   python kilauea.py v1           # v1 fast
-#   python kilauea.py v3 normal    # v3 normal
-#   python kilauea.py v1 normal    # v1 normal
+#   python vXcam_capture_v06.py              # v3 fast
+#   python vXcam_capture_v06.py v1           # v1 fast
+#   python vXcam_capture_v06.py v3 normal    # v3 normal
+#   python vXcam_capture_v06.py v1 normal    # v1 normal
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -88,37 +88,34 @@ CONFIGS = {
 
 CFG = CONFIGS[(cam, mode)]
 
-YOUTUBE_URL       = "https://www.youtube.com/watch?v=" + CFG["youtube_id"]
-CAM_NAME          = CFG["cam_name"]
-DIR_OUT           = CFG["dir_out"]
-BACKOFF_START     = CFG["backoff_start"]
-BACKOFF_CEILING   = CFG["backoff_ceiling"]
-YTDLP_LEAD_SECS   = CFG["ytdlp_lead_secs"]
-FFMPEG_LEAD_SECS  = CFG["ffmpeg_lead_secs"]
+YOUTUBE_URL      = "https://www.youtube.com/watch?v=" + CFG["youtube_id"]
+CAM_NAME         = CFG["cam_name"]
+DIR_OUT          = CFG["dir_out"]
+BACKOFF_START    = CFG["backoff_start"]
+BACKOFF_CEILING  = CFG["backoff_ceiling"]
+YTDLP_LEAD_SECS  = CFG["ytdlp_lead_secs"]
+FFMPEG_LEAD_SECS = CFG["ffmpeg_lead_secs"]
 
 YTDLP_BIN  = "yt-dlp"
 FFMPEG_BIN = "ffmpeg"
 
 # Fast mode settings
-TIMELAPSE_FACTOR  = 64
-FAST_INPUT_SECS   = 3635   # input window - pushed away from hour boundary
-FAST_OUTPUT_SECS  = FAST_INPUT_SECS // TIMELAPSE_FACTOR
+TIMELAPSE_FACTOR = 64
+FAST_INPUT_SECS  = 3635   # input window - pushed away from top-of-hour boundary
+FAST_OUTPUT_SECS = FAST_INPUT_SECS // TIMELAPSE_FACTOR
 
 # Normal mode settings
-NORMAL_SECS       = 3601   # just over 60 minutes - no gap between files
+NORMAL_SECS = 3601   # just over 60 minutes - no gap between files
 
 # Lie-low window after segment ends (identical for all modes)
-LIELOW_MIN_SECS   = 60
-LIELOW_MAX_SECS   = 240
+LIELOW_MIN_SECS = 60
+LIELOW_MAX_SECS = 240
 
-# Watchdog poll interval
-WATCHDOG_INTERVAL = 5
+# Watchdog poll interval in seconds
+POLL_INTERVAL = 5
 
-# yt-dlp command - format differs by mode
-if mode == "normal":
-    YTDLP_FORMAT = "best"
-else:
-    YTDLP_FORMAT = "94"
+# yt-dlp format differs by mode
+YTDLP_FORMAT = "best" if mode == "normal" else "94"
 
 YTDLP_CMD = [
     YTDLP_BIN,
@@ -210,40 +207,42 @@ def fetch_stream_url():
 # FFMPEG LAUNCH
 # ---------------------------------------------------------------------------
 
-def start_ffmpeg(stream_url, outfile):
-    if mode == "fast":
-        cmd = [
-            FFMPEG_BIN,
-            "-loglevel", "warning",
-            "-reconnect", "1",
-            "-reconnect_streamed", "1",
-            "-reconnect_delay_max", "30",
-            "-i", stream_url,
-            "-t", str(FAST_OUTPUT_SECS),
-            "-vf", f"setpts=PTS/{TIMELAPSE_FACTOR}",
-            "-r", "30",
-            "-an",
-            "-movflags", "+faststart",
-            "-y",
-            outfile,
-        ]
-        log(f"ffmpeg x{TIMELAPSE_FACTOR} out={FAST_OUTPUT_SECS}s -> {outfile}")
-    else:
-        cmd = [
-            FFMPEG_BIN,
-            "-loglevel", "warning",
-            "-reconnect", "1",
-            "-reconnect_streamed", "1",
-            "-reconnect_delay_max", "30",
-            "-i", stream_url,
-            "-t", str(NORMAL_SECS),
-            "-c:v", "copy",
-            "-movflags", "+faststart",
-            "-y",
-            outfile,
-        ]
-        log(f"ffmpeg normal {NORMAL_SECS}s -> {outfile}")
+def start_ffmpeg_normal(stream_url, outfile, duration):
+    cmd = [
+        FFMPEG_BIN,
+        "-loglevel", "warning",
+        "-reconnect", "1",
+        "-reconnect_streamed", "1",
+        "-reconnect_delay_max", "30",
+        "-i", stream_url,
+        "-t", str(int(duration)),
+        "-c:v", "copy",
+        "-movflags", "+faststart",
+        "-y",
+        outfile,
+    ]
+    log(f"ffmpeg normal {int(duration)}s -> {outfile}")
+    return subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL)
 
+def start_ffmpeg_fast(stream_url, outfile):
+    cmd = [
+        FFMPEG_BIN,
+        "-loglevel", "warning",
+        "-reconnect", "1",
+        "-reconnect_streamed", "1",
+        "-reconnect_delay_max", "30",
+        "-i", stream_url,
+        "-t", str(FAST_OUTPUT_SECS),
+        "-vf", f"setpts=PTS/{TIMELAPSE_FACTOR}",
+        "-r", "30",
+        "-an",
+        "-movflags", "+faststart",
+        "-y",
+        outfile,
+    ]
+    log(f"ffmpeg x{TIMELAPSE_FACTOR} out={FAST_OUTPUT_SECS}s -> {outfile}")
     return subprocess.Popen(cmd, stdin=subprocess.PIPE,
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL)
@@ -253,58 +252,20 @@ def start_ffmpeg(stream_url, outfile):
 #
 # _active  : list of {"proc": Popen, "filename": str} for all living children.
 #            older fast-mode encodes may still be running from prior cycles.
-#            pruned on obituary detection only, never on spawn.
+#            entries are pruned only when their obituary is logged.
 #
-# _latest  : the most recently spawned child, stored separately.
-#            never pruned, always overwritten on new spawn.
-#            watchdog checks _latest to detect premature death of current job.
-#            _active[-1] cannot be used for this because pruning shifts it.
+# _latest  : the most recently spawned child {"proc": Popen, "filename": str}.
+#            never pruned, always overwritten on each new spawn.
+#            _active[-1] cannot be used for this purpose because pruning
+#            shifts the list and would lose the reference to the current job.
 # ---------------------------------------------------------------------------
 
-_active  = []
-_latest  = None   # {"proc": Popen, "filename": str}
-_stop    = False
+_active = []
+_latest = None
+_stop   = False
 
 # ---------------------------------------------------------------------------
-# WATCHDOG - call inside any sleep/wait loop
-# ---------------------------------------------------------------------------
-
-def watchdog_poll():
-    """Check all active children.  Log obituaries.  Return True if _latest died."""
-    global _active
-
-    latest_died = False
-    still_alive = []
-
-    for entry in _active:
-        rc = entry["proc"].poll()
-        if rc is not None:
-            log(f"ffmpeg for {entry['filename']} finished rc={rc}")
-            if _latest and entry["proc"] is _latest["proc"]:
-                latest_died = True
-        else:
-            still_alive.append(entry)
-
-    _active[:] = still_alive
-    return latest_died
-
-# ---------------------------------------------------------------------------
-# WATCHDOG SLEEP - replaces bare time.sleep in wait loops
-# polls every WATCHDOG_INTERVAL seconds, returns True if _latest died
-# ---------------------------------------------------------------------------
-
-def watchdog_sleep(total_secs):
-    """Sleep for total_secs, polling every WATCHDOG_INTERVAL.
-    Returns True immediately if _latest child dies during the wait."""
-    deadline = time.time() + total_secs
-    while time.time() < deadline:
-        time.sleep(min(WATCHDOG_INTERVAL, max(0, deadline - time.time())))
-        if watchdog_poll():
-            return True
-    return False
-
-# ---------------------------------------------------------------------------
-# SPAWN - fetch URL and start ffmpeg, update _active and _latest
+# SPAWN - fetch URL, start ffmpeg, update _active and _latest
 # ---------------------------------------------------------------------------
 
 def spawn(label=""):
@@ -314,11 +275,33 @@ def spawn(label=""):
     stream_url = fetch_stream_url()
     label_dt   = now_hst()
     outfile    = DIR_OUT + "\\" + ts_filename(label_dt)
-    proc       = start_ffmpeg(stream_url, outfile)
-    entry      = {"proc": proc, "filename": outfile}
+    if mode == "fast":
+        proc = start_ffmpeg_fast(stream_url, outfile)
+    else:
+        proc = start_ffmpeg_normal(stream_url, outfile, NORMAL_SECS)
+    entry   = {"proc": proc, "filename": outfile}
     _active.append(entry)
-    _latest = entry   # always points at most recently spawned child
+    _latest = entry
     return entry
+
+# ---------------------------------------------------------------------------
+# POLL - sweep _active, log obituaries, return True if _latest has exited
+# ---------------------------------------------------------------------------
+
+def poll():
+    global _active
+    latest_gone = False
+    still_alive = []
+    for entry in _active:
+        rc = entry["proc"].poll()
+        if rc is not None:
+            log(f"ffmpeg for {entry['filename']} finished rc={rc}")
+            if _latest and entry["proc"] is _latest["proc"]:
+                latest_gone = True
+        else:
+            still_alive.append(entry)
+    _active[:] = still_alive
+    return latest_gone
 
 # ---------------------------------------------------------------------------
 # GRACEFUL KILL
@@ -365,98 +348,89 @@ signal.signal(signal.SIGINT,  _shutdown)
 signal.signal(signal.SIGTERM, _shutdown)
 
 # ---------------------------------------------------------------------------
-# WAIT FOR TRIGGER - waits until YTDLP_LEAD_SECS before next hour.
-# watchdog runs during the wait.  if _latest dies, respawn immediately.
+# WAIT FOR TRIGGER
+#
+# Waits until YTDLP_LEAD_SECS before the next hour so fetch_stream_url()
+# can run and complete before ffmpeg needs to fire.
+#
+# Polls every POLL_INTERVAL seconds.  If _latest has exited prematurely,
+# a panic respawn fires immediately.  The trigger wait then continues for
+# the same hour boundary - the panic child covers the gap.
 # ---------------------------------------------------------------------------
 
 def wait_for_trigger():
-    while True:
-        secs_to_hour  = seconds_until_next_hour()
-        trigger_epoch = time.time() + secs_to_hour - YTDLP_LEAD_SECS
-        target_dt     = datetime.datetime.fromtimestamp(trigger_epoch, tz=HST)
-        log(f"Next yt-dlp fetch at {target_dt.strftime('%H:%M:%S')} HST  "
-            f"(ffmpeg fires {FFMPEG_LEAD_SECS}s before hour)")
+    secs_to_hour  = seconds_until_next_hour()
+    trigger_epoch = time.time() + secs_to_hour - YTDLP_LEAD_SECS
+    target_dt     = datetime.datetime.fromtimestamp(trigger_epoch, tz=HST)
+    log(f"Next yt-dlp fetch at {target_dt.strftime('%H:%M:%S')} HST  "
+        f"(ffmpeg fires {FFMPEG_LEAD_SECS}s before hour)")
 
-        # wait until trigger, polling watchdog every 5 seconds
-        deadline = trigger_epoch
-        while time.time() < deadline:
-            sleep_for = min(WATCHDOG_INTERVAL, max(0, deadline - time.time()))
-            time.sleep(sleep_for)
-            if watchdog_poll():
-                log("Latest child died during trigger wait - virgin respawn")
-                spawn("emergency respawn")
-                # recalculate trigger for next hour and keep waiting
-                break
+    while time.time() < trigger_epoch:
+        sleep_for = min(POLL_INTERVAL, max(0.05, trigger_epoch - time.time()))
+        time.sleep(sleep_for)
+        if poll():
+            log("Latest child exited prematurely - panic respawn")
+            spawn("panic respawn")
 
-        if time.time() >= deadline:
-            return   # trigger time reached, proceed to fetch + fire
+# ---------------------------------------------------------------------------
+# LIE-LOW - deliberate rest period between cycles.
+# Polls for obituaries only - no respawn logic here.
+# The main loop handles the next cycle naturally after lie-low ends.
+# ---------------------------------------------------------------------------
+
+def lie_low():
+    pause = random.randint(LIELOW_MIN_SECS, LIELOW_MAX_SECS)
+    log(f"Lie-low pause: {pause}s")
+    deadline = time.time() + pause
+    while time.time() < deadline:
+        sleep_for = min(POLL_INTERVAL, max(0.05, deadline - time.time()))
+        time.sleep(sleep_for)
+        poll()   # log obituaries only, no action taken
 
 # ---------------------------------------------------------------------------
 # MAIN LOOP
 # ---------------------------------------------------------------------------
 
 def main():
+    global _latest
+
     make_dirs()
     log(f"=== Hansel and Gretel  {CAM_NAME} {mode} capture starting ===")
-    log(f"Output -> {DIR_OUT}")
+    log(f"Output   -> {DIR_OUT}")
     log(f"YouTube  -> {YOUTUBE_URL}")
     if mode == "fast":
-        log(f"Timelapse x{TIMELAPSE_FACTOR}  input={FAST_INPUT_SECS}s  "
-            f"output={FAST_OUTPUT_SECS}s")
+        log(f"Timelapse x{TIMELAPSE_FACTOR}  "
+            f"input={FAST_INPUT_SECS}s  output={FAST_OUTPUT_SECS}s")
     log(f"Backoff start={BACKOFF_START}s  ceiling={BACKOFF_CEILING}s")
 
-    # First run - start immediately, duration until :55:00 of current hour
+    # First run - start immediately.
+    # Fast mode: fire and forget, fall into hourly loop.
+    # Normal mode: record until :55:00 of current hour, then lie-low.
     log("First run - starting immediately")
     stream_url = fetch_stream_url()
     label_dt   = now_hst()
     outfile    = DIR_OUT + "\\" + ts_filename(label_dt)
 
     if mode == "fast":
-        # fire and forget - do not block on encoding
-        proc  = start_ffmpeg(stream_url, outfile)
+        proc  = start_ffmpeg_fast(stream_url, outfile)
         entry = {"proc": proc, "filename": outfile}
         _active.append(entry)
-        global _latest
         _latest = entry
     else:
-        # normal mode - block until segment finishes, then lie low
         duration = max(1.0, seconds_until_55())
         log(f"Recording {int(duration)}s until :55:00")
-        # rebuild cmd with immediate duration override
-        cmd = [
-            FFMPEG_BIN,
-            "-loglevel", "warning",
-            "-reconnect", "1",
-            "-reconnect_streamed", "1",
-            "-reconnect_delay_max", "30",
-            "-i", stream_url,
-            "-t", str(int(duration)),
-            "-c:v", "copy",
-            "-movflags", "+faststart",
-            "-y",
-            outfile,
-        ]
-        log(f"ffmpeg normal {int(duration)}s -> {outfile}")
-        proc  = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                                 stdout=subprocess.DEVNULL,
-                                 stderr=subprocess.DEVNULL)
+        proc  = start_ffmpeg_normal(stream_url, outfile, duration)
         entry = {"proc": proc, "filename": outfile}
         _active.append(entry)
         _latest = entry
         proc.wait()
-        watchdog_poll()
+        poll()
+        lie_low()
 
-        pause = random.randint(LIELOW_MIN_SECS, LIELOW_MAX_SECS)
-        log(f"Lie-low pause: {pause}s")
-        if watchdog_sleep(pause):
-            log("Latest child died during lie-low - virgin respawn")
-            spawn("emergency respawn in lie-low")
-
-    # Main hourly loop
+    # Hourly loop
     while not _stop:
         wait_for_trigger()
 
-        # fetch URL then wait for ffmpeg fire time
         stream_url   = fetch_stream_url()
         secs_to_hour = seconds_until_next_hour()
         ffmpeg_epoch = time.time() + secs_to_hour - FFMPEG_LEAD_SECS
@@ -466,22 +440,21 @@ def main():
 
         label_dt = now_hst()
         outfile  = DIR_OUT + "\\" + ts_filename(label_dt)
-        proc     = start_ffmpeg(stream_url, outfile)
-        entry    = {"proc": proc, "filename": outfile}
-        _active.append(entry)
-        _latest = entry
 
-        if mode == "normal":
-            # block until segment finishes
+        if mode == "fast":
+            proc  = start_ffmpeg_fast(stream_url, outfile)
+            entry = {"proc": proc, "filename": outfile}
+            _active.append(entry)
+            _latest = entry
+        else:
+            proc  = start_ffmpeg_normal(stream_url, outfile, NORMAL_SECS)
+            entry = {"proc": proc, "filename": outfile}
+            _active.append(entry)
+            _latest = entry
             proc.wait()
-            watchdog_poll()
+            poll()
 
-        # lie-low
-        pause = random.randint(LIELOW_MIN_SECS, LIELOW_MAX_SECS)
-        log(f"Lie-low pause: {pause}s")
-        if watchdog_sleep(pause):
-            log("Latest child died during lie-low - virgin respawn")
-            spawn("emergency respawn in lie-low")
+        lie_low()
 
     log(f"=== {CAM_NAME} {mode} capture stopped ===")
 
