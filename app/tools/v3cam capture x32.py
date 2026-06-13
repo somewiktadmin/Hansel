@@ -1,41 +1,30 @@
 import subprocess
 import datetime
 import time
-import random
 import signal
 import sys
 from zoneinfo import ZoneInfo
 
 # ---------------------------------------------------------------------------
-# CONFIG
+# CONFIG  (the laboratory)
 # ---------------------------------------------------------------------------
 
 YOUTUBE_URL      = "https://www.youtube.com/watch?v=gXKuUyKt8mc"
 CAM_NAME         = "v3cam"
+DIR_FAST         = r"hourly-v3cam-x32"
 
 YTDLP_BIN        = "yt-dlp"
 FFMPEG_BIN       = "ffmpeg"
 
-# Subfolders (created automatically if missing)
-DIR_NORMAL       = r"hourly-v3cam"
-DIR_FAST         = r"hourly-v3cam-x32"
+# Each cycle reads 1 hour + 15 seconds from the stream.
+# Output duration is divided by TIMELAPSE_FACTOR to keep ffmpeg honest.
+SEGMENT_SECONDS  = 3615          # 60 min + 15 sec input window
 
-# Full segment length for a normal cycle (55 minutes)
-SEGMENT_SECONDS  = 3300
+# Fire exactly 15 seconds before the hour  (e.g. 23:59:45)
+TRIGGER_LEAD_SECS = 15
 
-# How many seconds before the hour to fire ffmpeg (targets :00:00 start)
-# 11 seconds of lead time puts ffmpeg connecting at :59:49 so first frame
-# lands right at :00:00.  Tune this constant if drift is observed.
-FFMPEG_LEAD_SECS = 11
+TIMELAPSE_FACTOR = 32            # change to 16 / 30 / 60 as needed
 
-# Timelapse factor -- change this one number to switch 16 / 30 / 32 / 60
-TIMELAPSE_FACTOR = 32
-
-# Lie-low window after :55:00 stop, before next yt-dlp fetch + ffmpeg start
-LIELOW_MIN_SECS  = 60    # 1 minute
-LIELOW_MAX_SECS  = 240   # 4 minutes
-
-# yt-dlp flags -- edit -f value here to change quality (94 = 480p)
 YTDLP_CMD = [
     YTDLP_BIN,
     "-f", "94",
@@ -45,7 +34,6 @@ YTDLP_CMD = [
     "--extractor-args", "youtube:player_client=android",
 ]
 
-# Exponential backoff for yt-dlp fetch failures
 BACKOFF_BASE_SECS = 15
 BACKOFF_MAX_SECS  = 300
 BACKOFF_FACTOR    = 2
@@ -69,23 +57,15 @@ def log(msg):
 
 def make_dirs():
     import os
-    os.makedirs(DIR_NORMAL, exist_ok=True)
-    os.makedirs(DIR_FAST,   exist_ok=True)
+    os.makedirs(DIR_FAST, exist_ok=True)
 
-def ts_filename(dt, suffix=""):
-    base = dt.strftime("%Y-%m-%d_%H-%M-%S")
-    return f"{base}_{CAM_NAME}{suffix}.mp4"
+def ts_filename(dt):
+    return dt.strftime("%Y-%m-%d_%H-%M-%S") + f"_{CAM_NAME}_x{TIMELAPSE_FACTOR}.mp4"
 
 def seconds_until_next_hour():
     t = now_hst()
     secs_past = t.minute * 60 + t.second + t.microsecond / 1_000_000
     return 3600.0 - secs_past
-
-def seconds_until_55():
-    """Seconds until :55:00 of the current hour.  Negative if already past."""
-    t = now_hst()
-    secs_past = t.minute * 60 + t.second + t.microsecond / 1_000_000
-    return 3300.0 - secs_past
 
 def wait_until_epoch(target):
     while True:
@@ -95,21 +75,18 @@ def wait_until_epoch(target):
         time.sleep(min(0.05, remaining))
 
 # ---------------------------------------------------------------------------
-# yt-dlp URL FETCH  (with exponential backoff)
+# yt-dlp URL FETCH
 # ---------------------------------------------------------------------------
 
 def fetch_stream_url():
     backoff = BACKOFF_BASE_SECS
     attempt = 0
-
     while True:
         attempt += 1
         try:
             result = subprocess.run(
                 YTDLP_CMD + [YOUTUBE_URL],
-                capture_output=True,
-                text=True,
-                timeout=30,
+                capture_output=True, text=True, timeout=30,
             )
             if result.returncode != 0:
                 log(f"yt-dlp attempt {attempt} rc={result.returncode}: "
@@ -125,16 +102,16 @@ def fetch_stream_url():
             log(f"yt-dlp attempt {attempt}: timeout")
         except Exception as exc:
             log(f"yt-dlp attempt {attempt}: {exc}")
-
         log(f"Backoff {backoff}s before retry...")
         time.sleep(backoff)
         backoff = min(backoff * BACKOFF_FACTOR, BACKOFF_MAX_SECS)
 
 # ---------------------------------------------------------------------------
-# FFMPEG LAUNCH
+# FFMPEG  (fire and forget -- re-encode takes as long as it takes)
 # ---------------------------------------------------------------------------
 
-def start_ffmpeg_normal(stream_url, outfile, duration):
+def spawn_ffmpeg(stream_url, outfile):
+    out_duration = SEGMENT_SECONDS // TIMELAPSE_FACTOR
     cmd = [
         FFMPEG_BIN,
         "-loglevel", "warning",
@@ -142,28 +119,7 @@ def start_ffmpeg_normal(stream_url, outfile, duration):
         "-reconnect_streamed", "1",
         "-reconnect_delay_max", "30",
         "-i", stream_url,
-        "-t", str(int(duration)),
-        "-c:v", "copy",
-        "-an",
-        "-movflags", "+faststart",
-        "-y",
-        outfile,
-    ]
-    log(f"ffmpeg normal  {int(duration)}s -> {outfile}")
-    return subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL)
-
-def start_ffmpeg_fast(stream_url, outfile, duration):
-    duration = ( duration / TIMELAPSE_FACTOR )
-    cmd = [
-        FFMPEG_BIN,
-        "-loglevel", "warning",
-        "-reconnect", "1",
-        "-reconnect_streamed", "1",
-        "-reconnect_delay_max", "30",
-        "-i", stream_url,
-        "-t", str(int(duration)),
+        "-t", str(out_duration),
         "-vf", f"setpts=PTS/{TIMELAPSE_FACTOR}",
         "-r", "30",
         "-an",
@@ -171,105 +127,46 @@ def start_ffmpeg_fast(stream_url, outfile, duration):
         "-y",
         outfile,
     ]
-    log(f"ffmpeg x{TIMELAPSE_FACTOR}    {int(duration)}s -> {outfile}")
+    log(f"ffmpeg x{TIMELAPSE_FACTOR} out={out_duration}s -> {outfile}  (fire and forget)")
     return subprocess.Popen(cmd, stdin=subprocess.PIPE,
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL)
 
 # ---------------------------------------------------------------------------
-# GRACEFUL KILL
+# SHUTDOWN
 # ---------------------------------------------------------------------------
 
-def kill_proc(proc, label):
-    if proc is None or proc.poll() is not None:
-        return
-    log(f"Stopping {label} (pid {proc.pid})")
-    try:
-        proc.stdin.write(b"q\n")
-        proc.stdin.flush()
-    except Exception:
-        pass
-    try:
-        proc.wait(timeout=20)
-        return
-    except subprocess.TimeoutExpired:
-        pass
-    log(f"Terminating {label} (pid {proc.pid})")
-    proc.terminate()
-    try:
-        proc.wait(timeout=10)
-        return
-    except subprocess.TimeoutExpired:
-        pass
-    log(f"Killing {label} (pid {proc.pid})")
-    proc.kill()
-    proc.wait()
-
-# ---------------------------------------------------------------------------
-# SHUTDOWN HANDLER
-# ---------------------------------------------------------------------------
-
-_procs = []
-_stop  = False
+_active = []
+_stop   = False
 
 def _shutdown(sig, frame):
     global _stop
     _stop = True
-    log("Shutdown signal received -- cleaning up")
-    for label, proc in _procs:
-        kill_proc(proc, label)
+    log("Shutdown signal received -- sending q to any active ffmpeg processes")
+    for p in _active:
+        if p.poll() is None:
+            try:
+                p.stdin.write(b"q\n")
+                p.stdin.flush()
+            except Exception:
+                pass
     sys.exit(0)
 
 signal.signal(signal.SIGINT,  _shutdown)
 signal.signal(signal.SIGTERM, _shutdown)
 
 # ---------------------------------------------------------------------------
-# ONE CYCLE
+# WAIT FOR TRIGGER  (:59:45 each hour, fixed, no jitter)
 # ---------------------------------------------------------------------------
 
-def run_cycle(stream_url, immediate=False):
-    global _procs
+def wait_for_trigger():
+    secs_to_hour = seconds_until_next_hour()
+    trigger_epoch = time.time() + secs_to_hour - TRIGGER_LEAD_SECS
 
-    if immediate:
-        # Start right now, run until :55:00 of the current hour
-        duration = max(1.0, seconds_until_55())
-        label_dt = now_hst()
-        log(f"Immediate start -- recording {int(duration)}s until :55:00")
-    else:
-        # Wait for :59:49 (FFMPEG_LEAD_SECS before the next hour)
-        secs_to_hour = seconds_until_next_hour()
-        ffmpeg_epoch = time.time() + secs_to_hour - FFMPEG_LEAD_SECS
-
-        # If already inside the lead window, push to the hour after next
-        if secs_to_hour < FFMPEG_LEAD_SECS + 5:
-            log(f"Too close to boundary ({secs_to_hour:.1f}s) -- targeting next hour")
-            ffmpeg_epoch += 3600.0
-
-        target_dt = datetime.datetime.fromtimestamp(ffmpeg_epoch, tz=HST)
-        log(f"Waiting for ffmpeg start at {target_dt.strftime('%H:%M:%S')} HST")
-        wait_until_epoch(ffmpeg_epoch)
-
-        duration = SEGMENT_SECONDS
-        label_dt = now_hst()
-
-    f_normal = DIR_NORMAL + "\\" + ts_filename(label_dt)
-    f_fast   = DIR_FAST   + "\\" + ts_filename(label_dt,
-                                               suffix=f"_x{TIMELAPSE_FACTOR}")
-
-    #proc_normal = start_ffmpeg_normal(stream_url, f_normal, duration)
-    proc_fast   = start_ffmpeg_fast(stream_url,   f_fast,   duration)
-    _procs = [  #("ffmpeg-normal", proc_normal),
-        ("ffmpeg-fast", proc_fast)]
-
-    #proc_normal.wait()
-    proc_fast.wait()
-
-    #rc_n = proc_normal.returncode
-    rc_f = proc_fast.returncode
-    log(f"ffmpeg normal rc={rc_f}") #n}  fast rc={rc_
-
-    _procs = []
-    return rc_f == 0 #and rc_n == 0
+    target_dt = datetime.datetime.fromtimestamp(trigger_epoch, tz=HST)
+    log(f"Waiting for trigger at {target_dt.strftime('%H:%M:%S')} HST "
+        f"({TRIGGER_LEAD_SECS}s before hour)")
+    wait_until_epoch(trigger_epoch)
 
 # ---------------------------------------------------------------------------
 # MAIN LOOP
@@ -277,26 +174,36 @@ def run_cycle(stream_url, immediate=False):
 
 def main():
     make_dirs()
-    log(f"=== Hansel & Gretel  {CAM_NAME} capture starting ===")
-    log(f"Normal -> {DIR_NORMAL}   Fast x{TIMELAPSE_FACTOR} -> {DIR_FAST}")
+    log(f"=== Hansel and Gretel  {CAM_NAME} x{TIMELAPSE_FACTOR} laboratory starting ===")
+    log(f"Output -> {DIR_FAST}")
+    log(f"Trigger: {TRIGGER_LEAD_SECS}s before each hour  |  "
+        f"Input: {SEGMENT_SECONDS}s  |  "
+        f"Output: {SEGMENT_SECONDS // TIMELAPSE_FACTOR}s  |  "
+        f"Overlaps allowed")
 
-    first_run = True
+    # First run -- start immediately, no boundary wait
+    log("First run -- starting immediately")
+    log("Fetching stream URL via yt-dlp...")
+    stream_url = fetch_stream_url()
+    label_dt = now_hst()
+    outfile = DIR_FAST + "\\" + ts_filename(label_dt)
+    proc = spawn_ffmpeg(stream_url, outfile)
+    _active.append(proc)
 
+    # All subsequent runs -- fire at :59:45 each hour
     while not _stop:
+        wait_for_trigger()
+        _active[:] = [p for p in _active if p.poll() is None]
+
         log("Fetching stream URL via yt-dlp...")
         stream_url = fetch_stream_url()
 
-        success = run_cycle(stream_url, immediate=first_run)
-        first_run = False
+        label_dt = now_hst()
+        outfile = DIR_FAST + "\\" + ts_filename(label_dt)
+        proc = spawn_ffmpeg(stream_url, outfile)
+        _active.append(proc)
 
-        pause = random.randint(LIELOW_MIN_SECS, LIELOW_MAX_SECS)
-        if not success:
-            pause = max(pause, 30)
-        log(f"Lie-low pause: {pause}s")
-        time.sleep(pause)
-
-    log(f"=== {CAM_NAME} capture stopped ===")
-
+    log(f"=== {CAM_NAME} x{TIMELAPSE_FACTOR} laboratory stopped ===")
 
 if __name__ == "__main__":
     main()
