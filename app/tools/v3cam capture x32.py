@@ -124,7 +124,7 @@ YTDLP_CMD = [
     "--no-playlist",
     "--retries", "2",
     "--cookies-from-browser", "chrome",
-    "--extractor-args", "youtube:player_client=android",
+    "--extractor-args", "youtube:player_client=tv_embedded",
 ]
 
 # ---------------------------------------------------------------------------
@@ -159,11 +159,6 @@ def seconds_until_next_hour():
     secs_past = t.minute * 60 + t.second + t.microsecond / 1_000_000
     return 3600.0 - secs_past
 
-def seconds_until_55():
-    t = now_hst()
-    secs_past = t.minute * 60 + t.second + t.microsecond / 1_000_000
-    return 3300.0 - secs_past
-
 def wait_until_epoch(target):
     while True:
         remaining = target - time.time()
@@ -178,6 +173,7 @@ def wait_until_epoch(target):
 def fetch_stream_url():
     backoff = BACKOFF_START
     attempt = 0
+    log(f"Trying to fetch url for {YOUTUBE_URL}")
     while True:
         attempt += 1
         try:
@@ -207,7 +203,8 @@ def fetch_stream_url():
 # FFMPEG LAUNCH
 # ---------------------------------------------------------------------------
 
-def start_ffmpeg_normal(stream_url, outfile, duration):
+def start_ffmpeg_normal(stream_url, outfile):
+    duration = max(1.0, seconds_until_next_hour() + 1)
     cmd = [
         FFMPEG_BIN,
         "-loglevel", "warning",
@@ -216,8 +213,8 @@ def start_ffmpeg_normal(stream_url, outfile, duration):
         "-reconnect_delay_max", "30",
         "-i", stream_url,
         "-t", str(int(duration)),
-        "-c:v", "copy",
-        "-movflags", "+faststart",
+        "-c", "copy",
+        #"-movflags", "+faststart",
         "-y",
         outfile,
     ]
@@ -227,6 +224,8 @@ def start_ffmpeg_normal(stream_url, outfile, duration):
                             stderr=subprocess.DEVNULL)
 
 def start_ffmpeg_fast(stream_url, outfile):
+    duration = max(1.0, seconds_until_next_hour() + 1)
+    FAST_OUTPUT_SECS = duration //TIMELAPSE_FACTOR
     cmd = [
         FFMPEG_BIN,
         "-loglevel", "warning",
@@ -234,11 +233,11 @@ def start_ffmpeg_fast(stream_url, outfile):
         "-reconnect_streamed", "1",
         "-reconnect_delay_max", "30",
         "-i", stream_url,
-        "-t", str(FAST_OUTPUT_SECS),
         "-vf", f"setpts=PTS/{TIMELAPSE_FACTOR}",
+        "-t", str(FAST_OUTPUT_SECS),
         "-r", "30",
         "-an",
-        "-movflags", "+faststart",
+        #"-movflags", "+faststart",
         "-y",
         outfile,
     ]
@@ -278,7 +277,7 @@ def spawn(label=""):
     if mode == "fast":
         proc = start_ffmpeg_fast(stream_url, outfile)
     else:
-        proc = start_ffmpeg_normal(stream_url, outfile, NORMAL_SECS)
+        proc = start_ffmpeg_normal(stream_url, outfile)
     entry   = {"proc": proc, "filename": outfile}
     _active.append(entry)
     _latest = entry
@@ -366,7 +365,7 @@ def wait_for_trigger():
         f"(ffmpeg fires {FFMPEG_LEAD_SECS}s before hour)")
 
     while time.time() < trigger_epoch:
-        sleep_for = min(POLL_INTERVAL, max(0.05, trigger_epoch - time.time()))
+        sleep_for = min(POLL_INTERVAL, max(1, trigger_epoch - time.time()))
         time.sleep(sleep_for)
         if poll():
             log("Latest child exited prematurely - panic respawn")
@@ -383,7 +382,7 @@ def lie_low():
     log(f"Lie-low pause: {pause}s")
     deadline = time.time() + pause
     while time.time() < deadline:
-        sleep_for = min(POLL_INTERVAL, max(0.05, deadline - time.time()))
+        sleep_for = min(POLL_INTERVAL, max(1, deadline - time.time()))
         time.sleep(sleep_for)
         poll()   # log obituaries only, no action taken
 
@@ -408,53 +407,14 @@ def main():
     # Normal mode: record until :55:00 of current hour, then lie-low.
     log("First run - starting immediately")
     stream_url = fetch_stream_url()
-    label_dt   = now_hst()
-    outfile    = DIR_OUT + "\\" + ts_filename(label_dt)
-
-    if mode == "fast":
-        proc  = start_ffmpeg_fast(stream_url, outfile)
-        entry = {"proc": proc, "filename": outfile}
-        _active.append(entry)
-        _latest = entry
-    else:
-        duration = max(1.0, seconds_until_55())
-        log(f"Recording {int(duration)}s until :55:00")
-        proc  = start_ffmpeg_normal(stream_url, outfile, duration)
-        entry = {"proc": proc, "filename": outfile}
-        _active.append(entry)
-        _latest = entry
-        proc.wait()
-        poll()
-        lie_low()
+    spawn("Initial spawn")
 
     # Hourly loop
     while not _stop:
         wait_for_trigger()
-
-        stream_url   = fetch_stream_url()
-        secs_to_hour = seconds_until_next_hour()
-        ffmpeg_epoch = time.time() + secs_to_hour - FFMPEG_LEAD_SECS
-        target_dt    = datetime.datetime.fromtimestamp(ffmpeg_epoch, tz=HST)
-        log(f"Waiting for ffmpeg start at {target_dt.strftime('%H:%M:%S')} HST")
-        wait_until_epoch(ffmpeg_epoch)
-
-        label_dt = now_hst()
-        outfile  = DIR_OUT + "\\" + ts_filename(label_dt)
-
-        if mode == "fast":
-            proc  = start_ffmpeg_fast(stream_url, outfile)
-            entry = {"proc": proc, "filename": outfile}
-            _active.append(entry)
-            _latest = entry
-        else:
-            proc  = start_ffmpeg_normal(stream_url, outfile, NORMAL_SECS)
-            entry = {"proc": proc, "filename": outfile}
-            _active.append(entry)
-            _latest = entry
-            proc.wait()
-            poll()
-
+        stream_url = fetch_stream_url()
         lie_low()
+        spawn("Hourly restart")
 
     log(f"=== {CAM_NAME} {mode} capture stopped ===")
 
