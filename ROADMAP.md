@@ -3,7 +3,7 @@
 Hansel is a GPS breadcrumb logger for field research at Kilauea volcano,
 Big Island, Hawaii.  HST timezone.
 
-## v0.986 - COMPLETED
+## v0.985 - COMPLETED
 - OSMDroid baseline: MAPNIK tiles, INVERT_COLORS, 60/40 layout
 - Map controls: [ME], [VH removed], [HMM], [+], [-]
 - Status overlay: lat/lon/alt/spd/crs/zoom/moon/sunrise/sunset
@@ -36,11 +36,10 @@ Big Island, Hawaii.  HST timezone.
   like email-saved ndjson files, saved inside the Gretel directory.
 
 
-
 ## v0.99 - housekeeping before the split
 - BootReceiver: auto-resume LocationService after phone reboot & unlock
 - consolidateOldFiles(): move consumed files to ./backup/ instead
-  of deleting them
+  of deleting them (or same directory prefixed ".backup.")
 - consolidateOldFiles(): version existing monthly files before
   overwriting (slots 61-99)
 - consolidateOldFiles(): convert from SAF to direct File access

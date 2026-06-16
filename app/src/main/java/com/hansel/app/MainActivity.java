@@ -1,5 +1,5 @@
 /*
- * Hansel - GPS breadcrumb logger v0.986
+ * Hansel - GPS breadcrumb logger v0.987
  * Copyright (C) 2026 GrimmsTales
  * GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
  */
@@ -41,7 +41,7 @@ import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 import java.io.File;
 
 /**
- * Hansel v0.986 main activity.
+ * Hansel v0.987 main activity.
  *
  * TODO: Rewrite this Javadoc block once OSMDroid integration and replay are stable.
  *
@@ -220,7 +220,7 @@ public class MainActivity extends Activity {
         initOsmdroid();
         Configuration.getInstance()
                 .setUserAgentValue(
-                        "Hansel/0.986 personal field logger - single user, Kilauea HI");
+                        "Hansel/0.987 personal field logger - single user, Kilauea HI");
         //cache for OSMDroid is not allowed to live on sdcard, so try this
         Configuration.getInstance()
                 .setOsmdroidBasePath(getFilesDir());
@@ -1068,7 +1068,7 @@ public class MainActivity extends Activity {
      */
     private void startLoggingDefault() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        int interval = prefs.getInt("last_interval", 30000); //30_000 30000
+        int interval = prefs.getInt("last_interval", 5000); //30_000 30000
         Intent i = new Intent(this, LocationService.class);
         i.putExtra("interval", interval);
         i.putExtra("rollover", 3600);
@@ -1301,7 +1301,7 @@ public class MainActivity extends Activity {
      * skyBarBox is updated separately by updateSkyOverlay().
      *
      * gpsInfoOverlay layout (zero-based):
-     *   0: "Hansel v0.986" left, zoomerLine right-justified with monospace spaces
+     *   0: "Hansel v0.987" left, zoomerLine right-justified with monospace spaces
      *   1: mostCurrentGPS (timestamp first, lat, lon, alt, spd)
      */
     public static void rebuildGpsInfoOverlay() {
@@ -1314,7 +1314,7 @@ public class MainActivity extends Activity {
         String zoomer = String.format(java.util.Locale.US,
                 "%.6f %.6f %s Z:%d",
                 zoomerLat, zoomerLon, altStr, zoomerZoom);
-        String label = "Hansel v0.986";
+        String label = "Hansel v0.987";
         // pad between label and zoomer to fill overlayChars
         int spaces = Math.max(1, overlayChars - label.length() - zoomer.length());
         StringBuilder pad = new StringBuilder();

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Hansel v0.986 - main layout
+<!-- Hansel v0.987 - main layout
      MapView (OSMDroid) takes 60% of screen height via weight 3.
      WebView takes 40% for controls, graph, and scrollbox via weight 2.
      FrameLayout wrapper allows native views to float over the map. -->
@@ -21,7 +21,7 @@
             android:layout_height="match_parent" />
 
         <!-- gpsInfoOverlay - GPS info lines, below paused floaties.
-                     Line 0: Hansel v0.986 [spaces] zoomerLine (right justified)
+                     Line 0: Hansel v0.987 [spaces] zoomerLine (right justified)
                      Line 1: mostCurrentGPS (timestamp first, lat, lon, alt, spd)
         -->
         <TextView
@@ -37,7 +37,7 @@
             android:background="#4F000000"
             android:textSize="10sp"
             android:fontFamily="monospace"
-            android:text="Hansel v0.986" />
+            android:text="Hansel v0.987" />
 
         <!-- skyBarBox - sky timeline, below gpsInfoOverlay.
                Line 0:    12    16    20    00    04    08    12  (header)

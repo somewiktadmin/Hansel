@@ -1,4 +1,4 @@
-// Hansel - GPS breadcrumb logger v0.986
+// Hansel - GPS breadcrumb logger v0.987
 // Copyright (C) 2026 GrimmsTales
 // GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -42,7 +42,7 @@ import java.util.Calendar;
 import java.util.Date;
 
 /**
- * Hansel GPS breadcrumb logger - v0.986.
+ * Hansel GPS breadcrumb logger - v0.987.
  * File format: NDJSON v0.931.
  *
  * <p>LocationService is the heart of Hansel.  It runs as an Android foreground
@@ -141,7 +141,7 @@ public class LocationService extends Service {
      *       startLoggingDefault() - it will always be 30_000 and pretending
      *       otherwise is misleading.
      */
-    int interval = 30000; //30000 30_000
+    int interval = 5000; //30000 30_000
 
     /**
      * Minimum GPS request interval in milliseconds.  500ms was tried and

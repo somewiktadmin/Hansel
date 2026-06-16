@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-    Hansel GPS breadcrumb logger - v0.986
+    Hansel GPS breadcrumb logger - v0.987
     index.html - WebView UI, the only thing the user ever sees.
 
     This file runs inside an Android WebView (MainActivity.java).
@@ -68,7 +68,7 @@
 </head>
 
 <body><!-- if I keep this, it will go into a titlebar of a window or similar.
-<h2 title="Hansel-app logs paths. Gretel-app listens.">Hansel - notes v0.986</h2>
+<h2 title="Hansel-app logs paths. Gretel-app listens.">Hansel - notes v0.987</h2>
 -->
 <div id="status">Idle</div>
 <pre id="readout">Waiting...</pre>
@@ -129,7 +129,7 @@
 <button onclick="replay72h()">72hr</button>
 
 <script>
-            const HANSEL_VERSION = "0.986";
+            const HANSEL_VERSION = "0.987";
 
             // say() is defined first, before everything else, so that any
             // code anywhere in this file can call it safely.  During early
@@ -174,7 +174,7 @@
 
             // Logging interval in milliseconds.  30_000 is the only correct
             // value - see LocationService.java interval field for the full story.
-            let interval = 30000; // 30000 30_000
+            let interval = 5000; // 30000 30_000
 
             let logLines = [];
             let points = [];
