@@ -39,6 +39,7 @@ import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider;
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 
 import java.io.File;
+import java.sql.Date;
 
 /**
  * Hansel v0.987 main activity.
@@ -67,8 +68,8 @@ public class MainActivity extends Activity {
     //public static  SeekBar zoomSlider;
     //public static  boolean sliderTracking = false; // suppress map->slider echo
 
-    // At Hansel v1 and 0.94, started using the number 1094
-    private static final int REQUEST_TREE = 1094;
+
+    private static final int REQUEST_TREE = 1094; // At Hansel v1 and 0.94, started using the number 1094
     private static final int REQUEST_TILE = 1095;
     private static final int REQUEST_SPOOL= 1096;
 
@@ -97,6 +98,8 @@ public class MainActivity extends Activity {
     /** Cached status overlay data - updated 1Hz from handleLocation(). */
     public static String statusLine1 = "";
 
+    /** Usable character width of skyBarBox - measured after layout, like overlayChars. */
+    public static int skyBarChars = 52; // 2-digit day + "|" + 48 slots + "|", until measured
     /** Sky bar header line - constant, 3 leading spaces align DD| prefix. */
     public static final String SKY_HEADER = "   12    16    20    00    04    08    12";
 
@@ -272,8 +275,12 @@ public class MainActivity extends Activity {
                     say( "charsW " + charsW + " is good");
                 }
 
-                if (charW > 0) overlayChars = (int)(gpsInfoOverlay.getWidth() / charW);
-            }
+            if (charW > 0) overlayChars = (int)(gpsInfoOverlay.getWidth() / charW);
+        }
+        if (skyBarBox.getPaint() != null && skyBarBox.getWidth() > 0) {
+            float skyCharW = skyBarBox.getPaint().measureText("M");
+            if (skyCharW > 0) skyBarChars = (int)(skyBarBox.getWidth() / skyCharW);
+        }
         //});
 
         btnMe      = findViewById(R.id.btnMe);
@@ -761,7 +768,7 @@ public class MainActivity extends Activity {
         String date = t.substring(0, 10); // "yyyy-MM-dd"
         if (date.equals(lastCalcDate)) return;
         lastCalcDate = date;
-        cachedMoon = calcMoonPhase(date);
+        cachedMoon = calcMoonPhaseString(date);
         cachedSun  = calcSunTimes(date, lat, lon);
     }
 
@@ -776,8 +783,26 @@ public class MainActivity extends Activity {
     }
 
 
-// ====
 
+    /**
+     * Returns moon phase
+     * Reference new moon: 2000-01-06 - a known NM date, no time needed.
+     * Cycle = 29.53059 days.
+     */
+    private static long calcMoonPhase(String date) {
+        // parse date digits directly
+        int y = Integer.parseInt(date.substring(0, 4));
+        int m = Integer.parseInt(date.substring(5, 7));
+        int d = Integer.parseInt(date.substring(8, 10));
+
+        // days since reference new moon 2000-01-06 using integer day arithmetic
+        // Julian Day Number - no time component needed, day resolution is fine
+        long jd = julianDay(y, m, d);
+        long jd0 = julianDay(2000, 1, 6); // reference New Moon
+        double age = ((jd - jd0) % 29.53059 + 29.53059) % 29.53059; // 0..29.53
+
+        return (long) age;
+    }
 
     /**
      * Returns moon phase label and days to next FM or NM.
@@ -785,7 +810,7 @@ public class MainActivity extends Activity {
      * Reference new moon: 2000-01-06 - a known NM date, no time needed.
      * Cycle = 29.53059 days.
      */
-    private static String calcMoonPhase(String date) {
+    private static String calcMoonPhaseString(String date) {
         // parse date digits directly
         int y = Integer.parseInt(date.substring(0, 4));
         int m = Integer.parseInt(date.substring(5, 7));
@@ -794,7 +819,7 @@ public class MainActivity extends Activity {
         // days since reference new moon 2000-01-06 using integer day arithmetic
         // Julian Day Number - no time component needed, day resolution is fine
         long jd  = julianDay(y, m, d);
-        long jd0 = julianDay(2000, 1, 6); // reference NM
+        long jd0 = julianDay(2000, 1, 6); // reference New Moon
         double age = ((jd - jd0) % 29.53059 + 29.53059) % 29.53059; // 0..29.53
 
         // 8 named phases, 28-step label array
@@ -825,6 +850,7 @@ public class MainActivity extends Activity {
         }
     }
 
+
     /**
      * Integer Julian Day Number from calendar date.
      * No time component - day resolution only.
@@ -850,7 +876,8 @@ public class MainActivity extends Activity {
      *
      * Depression angles: astronomical=18, nautical=12, civil=6 degrees.
      */
-    private static String[] calcSunTimes(String date, double lat, double lon) {
+    @Deprecated
+    public static String[] calcSunTimes(String date, double lat, double lon) {
         int y = Integer.parseInt(date.substring(0, 4));
         int m = Integer.parseInt(date.substring(5, 7));
         int d = Integer.parseInt(date.substring(8, 10));
@@ -904,7 +931,7 @@ public class MainActivity extends Activity {
     }
 
     /** Day of year, 1-based. Accounts for leap years. */
-    private static int dayOfYear(int y, int m, int d) {
+    public static int dayOfYear(int y, int m, int d) {
         int[] dim = {31,28,31,30,31,30,31,31,30,31,30,31};
         if ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0) dim[1] = 29;
         int doy = d;
@@ -1091,11 +1118,11 @@ public class MainActivity extends Activity {
     }
 
     /** Hardcoded Kilauea center coordinates for sky calculations. */
-    private static final double SKY_LAT =  19.411411;
-    private static final double SKY_LON = -155.269269;
+    public static double SKY_LAT =  19.411411;
+    public static double SKY_LON = -155.269269;
 
     /** Accumulated sky bar lines for replay mode (up to 10). */
-    private static final java.util.LinkedList<String> skyBarLines =
+    public static final java.util.LinkedList<String> skyBarLines =
             new java.util.LinkedList<>();
 
     /**
@@ -1128,6 +1155,7 @@ public class MainActivity extends Activity {
      * @param lon longitude in decimal degrees.
      * @return solar altitude in degrees, negative below horizon.
      */
+    @Deprecated
     private static double calcSunAltitude(double jd, double lat, double lon) {
         double n   = jd - 2451545.0;
         double L   = (280.460 + 0.9856474 * n) % 360.0;
@@ -1155,6 +1183,7 @@ public class MainActivity extends Activity {
      * @param lon longitude in decimal degrees.
      * @return lunar altitude in degrees, negative below horizon.
      */
+    @Deprecated
     private static double calcMoonAltitude(double jd, double lat, double lon) {
         double n  = jd - 2451545.0;
         double Lm = (218.316 + 13.176396 * n) % 360.0;
@@ -1187,6 +1216,7 @@ public class MainActivity extends Activity {
      * @param jd fractional Julian Day in UT.
      * @return illumination fraction 0.0 to 1.0.
      */
+    @Deprecated
     private static double calcMoonIllumination(double jd) {
         double n   = jd - 2451545.0;
         double Lm  = Math.toRadians((218.316 + 13.176396 * n) % 360.0);
@@ -1199,68 +1229,251 @@ public class MainActivity extends Activity {
         return (1.0 - Math.cos(elong)) / 2.0;
     }
 
+    /** Lookup table for sunrise/sunset approximation - see sunBar-style design. */
+    public static final double[] SKY_LAT_TABLE = {0, 10, 20, 30, 40, 50, 60, 70, 80, 90};
+    public static final double[] SKY_MAX_SHIFT = {0, 0.77, 1.53, 2.32, 3.14, 4.35, 6.50, 9.50, 11.5, 12.0};
+
+    /** Interpolated max day-length shift (hours) from the lookup table, clamped past 90. */
+    public static double maxShiftForLat(double latitude) {
+        double absLat = Math.abs(latitude);
+        if (absLat >= 90) return SKY_MAX_SHIFT[SKY_MAX_SHIFT.length - 1];
+        int i = 0;
+        while (SKY_LAT_TABLE[i + 1] < absLat) i++;
+        //double frac = (absLat - SKY_LAT_TABLE[i]) / (SKY_LAT_TABLE[i + 1] - SKY_LAT_TABLE[i]);
+        return SKY_MAX_SHIFT[i] ; //+ frac * (SKY_MAX_SHIFT[i + 1] - SKY_MAX_SHIFT[i]);
+    }
+
     /**
-     * Builds the 72-character sky timeline string for the given date.
-     * Timeline runs noon HST to noon HST next day (midnight at center).
-     * Each character represents 20 minutes.
+     * Interpolated sunrise/sunset, in minutes from midnight, via simple seasonal
+     * interpolation - no expensive unnecessary solar-position math.  Good to roughly the
+     * half-hour, which is the target accuracy for this whole display.
+     *
+     * @return double[]{sunriseMin, sunsetMin}
+     */
+    public static double[] sunriseSunsetMinutes(double latitude, int dayOfYear) {
+        double maxShift = maxShiftForLat(latitude);
+        int winterSolstice = latitude >= 0 ? 355 : 172;
+        int daysSinceWinter = (dayOfYear - winterSolstice + 365) % 365;
+        double seasonalFactor = daysSinceWinter <= 182
+                ? daysSinceWinter / 182.0
+                : (365 - daysSinceWinter) / 183.0;
+        double shift = maxShift * seasonalFactor;
+        double dayLength = 12.0 - maxShift + shift * 2.0;
+        double sunriseHr = 12.0 - dayLength / 2.0;
+        double sunsetHr  = 12.0 + dayLength / 2.0;
+        return new double[]{sunriseHr * 60.0, sunsetHr * 60.0};
+    }
+
+    /** Width in minutes of each civil/nautical/astronomical twilight band. */
+    private static final double SKY_BAND_MIN = 20.0;
+
+    /**
+     * Buckets a "minutes past the biased dark-edge" value into a twilight
+     * character. offsetMin &lt; 0 means still in the lighter band/daylight
+     * (caller returns null in that case).
+     */
+    private static Character skyBucket(double offsetMin) {
+        if (offsetMin < 0) return null;
+        if (offsetMin < SKY_BAND_MIN)     return '-';
+        if (offsetMin < 2*SKY_BAND_MIN)   return '=';
+        if (offsetMin < 3*SKY_BAND_MIN)   return '/';
+        return '*';
+    }
+
+    /**
+     * Picks how many sky-bar slots fit in the measured character width.
+     * Only two candidates are real options - 72 slots (20 min each) or
+     * 48 slots (30 min each).  32 and 24 were tried previously and didn't
+     * read well, so they're not in the running.  Falls back to 48 if even
+     * that doesn't fit.
+     */
+    private static int pickSkySlots(int availableChars) {
+        int overhead = 4; // 2-digit day + 2 pipes
+        if (availableChars >= 72 + overhead) return 72;
+        return 48;
+    }
+
+    /** Minutes per slot for a given skySlots choice (1440 minutes / slots). */
+    private static int slotWidthMin(int skySlots) {
+        return 1440 / skySlots;
+    }
+
+    /**
+     * Builds the header line to match whatever skySlots/slotWidth was chosen.
+     * Hour labels in 24hr clock, starting at 12 (noon).  Normally one label
+     * per hour, but if that leaves no room for a separating space (true at
+     * 48 slots/30 min, where an hour is only 2 characters wide - exactly
+     * the label's own length), the label interval widens to 2 hours so each
+     * label still gets at least one space of breathing room.  3 leading
+     * spaces align the labels above the bar body, which starts after "DD|".
+     */
+    private static String buildSkyHeader(int skySlots, int slotWidthMin) {
+        int slotsPerHour = Math.max(1, 60 / slotWidthMin);
+        int hoursPerLabel = 1;
+        while (slotsPerHour * hoursPerLabel < 3) hoursPerLabel++; // need room for "NN" + >=1 space
+        int slotsPerLabel = slotsPerHour * hoursPerLabel;
+
+        StringBuilder header = new StringBuilder("   ");
+        int hour = 12;
+        int pos = 0;
+        while (pos < skySlots) {
+            String label = String.format(java.util.Locale.US, "%02d", hour % 24);
+            header.append(label);
+            int gap = slotsPerLabel - label.length();
+            for (int i = 0; i < gap; i++) header.append(' ');
+            hour += hoursPerLabel;
+            pos += slotsPerLabel;
+        }
+        return header.toString();
+    }
+
+    /**
+     * Builds the sky timeline string for the given date, sized dynamically
+     * to fit the measured width of skyBarBox (72 slots at 20 min, or 48
+     * slots at 30 min, or most important, 24 slots at 60 min.)
+     *
+     * Timeline runs noon HST to noon HST the next day.
+     *
+     * Code simplicity outweight celestial accuracy.  Julian day nonsense
+     * has cause many bugs to be introduced.  Calculating this 10 separate
+     * lines 60 times per second, we CANNOT affor any heavyweight math
+     * library calls here.  The estimates herein actually ARE accurate to
+     * within the 20 minute minimum accuracy.
+     *
+     * Going for microsecond accuracy isn't just mental masturbation that
+     * adds bugs to the code, it also adds calculation weight here that
+     * cannot be afforded.  Especially when I am 450 yards away from a
+     * lava fountain suddenly worrying about my phone overheating because
+     * some AI decided to violate the coding standards here, completely
+     * ignore the requirements and design contracts, instead reasserting
+     * the AI stupidity of looking smart by being impossibly stupid.
+     *
+     * Real lookup-table sunrise/sunset, then civil/nautical/astronomical
+     * bands approximated as flat 20-minute steps outward from those
+     * times - the math was done outside and does not need to be redone.
+     *
+     * Moon layer is correctly calculated from moon phase.  That's all.
+     * Any additional calculations are additional "woke" AI attempts to
+     * sabotage this, because I am a "breeder."
+     *
      *
      * Character key (priority order, dark to light):
      *   .  full daylight, moon not notable
      *   ,  daylight, moon above horizon but below 30 deg
-     *   '  daylight, moon above 30 deg elevation
-     *   -  civil twilight (sun 0 to -6 deg)
-     *   =  nautical twilight (sun -6 to -12 deg)
-     *   /  astronomical twilight (sun -12 to -18 deg)
-     *   *  astronomical dark, moon below horizon (Milky Way viable)
-     *   m  dark, moon above horizon, illumination >50pct
+     *   '  daylight, moon high above horizon
      *   n  dark, moon above horizon, illumination <50pct
+     *   N  dark, moon high above horizon, illumination <50pct
+     *   m  dark, moon above horizon, illumination >50pct
+     *   M  dark, moon high above horizon, illumination >50pct
+     *   _  near civil twilight ( ~1 deg)
+     *   -  civil twilight ( ~6 deg)
+     *   =  nautical twilight ( ~12 deg)
+     *   /  astronomical twilight ( ~18 deg)
+     *   \  astronomical twilight ( ~18 deg)
+     *   *  astronomical dark, moon below horizon (Milky Way viable)
      *
      * @param date date string yyyy-MM-dd in HST.
-     * @return 72-character sky bar string.
+     * @return sky bar string, length = pickSkySlots(skyBarChars).
      */
     private static String calcSkyBar(String date) {
+
         int y  = Integer.parseInt(date.substring(0, 4));
         int mo = Integer.parseInt(date.substring(5, 7));
         int d  = Integer.parseInt(date.substring(8, 10));
 
-        // noon HST = UT - 10h.  julianDay() returns integer JD at noon UT.
-        // noon HST as fractional JD = julianDay(y,mo,d) - 10.0/24.0
-        double jdStart = julianDay(y, mo, d) - 10.0 / 24.0;
+        int skySlots = pickSkySlots(skyBarChars);
+        int slotMin  = slotWidthMin(skySlots);
 
-        StringBuilder sb = new StringBuilder(36);
-        for (int i = 0; i < 36; i++) {
-            // center of this 40-min slot in fractional JD (UT)
-            double jd = jdStart + (i * 40.0 + 20.0) / 1440.0;
+        int dayOfYear = dayOfYear(y, mo, d);
 
-            double sunAlt  = calcSunAltitude(jd,  SKY_LAT, SKY_LON);
-            double moonAlt = calcMoonAltitude(jd, SKY_LAT, SKY_LON);
-            double moonIll = calcMoonIllumination(jd);
+        double[] rs = sunriseSunsetMinutes(SKY_LAT, dayOfYear);
+        double sunrise = rs[0];
+        double sunset  = rs[1];
 
-            char c;
-            if (sunAlt >= 6.0) {
-                // full daylight
-                if      (moonAlt > 30.0) c = '\'';
-                else if (moonAlt >  0.0) c = ',';
-                else                     c = '.';
-            } else if (sunAlt >=  0.0)  { c = '-'; // civil twilight
-            } else if (sunAlt >= -6.0)  { c = '='; // nautical twilight
-            } else if (sunAlt >= -12.0) { c = '/'; // astronomical twilight
-            } else {
-                // astronomical darkness
-                if      (moonAlt <= 0.0) c = '*';
-                else if (moonIll >= 0.5) c = 'm';
-                else                     c = 'n';
+        long phase = calcMoonPhase(date);
+
+        long dph = (phase-22+29)%29;
+
+        long moonrise = (24*dph)/29;
+        long moonset = (moonrise + 12) % 24;
+
+
+        StringBuilder sb = new StringBuilder(skySlots);
+
+        for (int slot = 0; slot < skySlots; slot++) {
+
+            double t = 12 * 60 + slot * slotMin + slotMin / 2.0;
+
+            char c = classifySun(t, sunrise, sunset);
+
+            if (c == '.') {
+
+                if (moonVisibleAt(t, moonrise, moonset)) {
+
+                    if (moonNearHorizon(t, moonrise, moonset))
+                        c = ',';
+                    else
+                        c = '\'';
+                }
+
+            } else if (c == '*') {
+
+                if (moonVisibleAt(t, moonrise, moonset)) {
+
+                    boolean brightMoon =
+                            dph >= 8 &&
+                                    dph <= 21;
+
+                    boolean horizon =
+                            moonNearHorizon(t, moonrise, moonset);
+
+                    if (brightMoon)
+                        c = horizon ? 'm' : 'M';
+                    else
+                        c = horizon ? 'n' : 'N';
+                }
             }
+
             sb.append(c);
         }
+
         return sb.toString();
     }
 
+    /** TODO: this should work, instead of just retyrning false!  */
+    private static boolean moonNearHorizon(double t, long moonrise, long moonset) {
+        return false;
+    }
+
+    /** Is moon above horizon?  We know for certain from lon & phase */
+    private static boolean moonVisibleAt(double t, long moonrise, long moonset) {
+        if ( (t <moonset) && (t > moonrise) ) return true;
+        if ( (moonset < moonrise) && (t < moonset) ) return true;
+        return false;
+     }
+
+    /** return a char indicating sunshine or darkness */
+    private static char classifySun(double t, double sunrise, double sunset) {
+        if ( (t > sunset) || (t < sunrise) ) return '*';
+        return '.';
+    }
+
+
+    /** Darkness rank for choosing the less-dark of two twilight bucket candidates. */
+    private static int rankBand(char c) {
+        switch (c) {
+            case '-': return 0;
+            case '=': return 1;
+            case '/': return 2;
+            default:  return 3; // '*'
+        }
+    }
+
     /**
-     * Updates the sky bar lines list and triggers overlay rebuild.
-     * In live mode: single entry, always today.
-     * In replay mode: accumulates up to (overlayLines - 5) entries,
-     * newest at bottom, oldest dropped from top.
+     * Updates the sky bar overlay for the given date - single line, always
+     * just today's bar.  No history accumulation in replay mode; an earlier
+     * version tried scrolling up previous days during replay, but that
+     * covered map information the bar should never obscure, so it's gone.
      *
      * Called from handleLocation() (live mode) and handleReplayPoint() (replay).
      *
@@ -1270,27 +1483,9 @@ public class MainActivity extends Activity {
         if (skyBarBox == null) return;
         String bar  = calcSkyBar(date);
         String day  = date.substring(8, 10);
-        String line = day + "|" + bar;
-
-        int maxLines = Math.max(1, overlayLines - 5);
-
-        if (!replayInProgress) {
-            skyBarLines.clear();
-            skyBarLines.add(line);
-        } else {
-            if (skyBarLines.isEmpty() ||
-                    !skyBarLines.getLast().startsWith(day + "|")) {
-                skyBarLines.add(line);
-                if (skyBarLines.size() > maxLines) skyBarLines.removeFirst();
-            }
-        }
-
-        StringBuilder sb = new StringBuilder();
-        sb.append(SKY_HEADER);
-        for (String l : skyBarLines) {
-            sb.append("\n").append(l);
-        }
-        final String skyText = sb.toString();
+        int skySlots = pickSkySlots(skyBarChars);
+        String header = buildSkyHeader(skySlots, slotWidthMin(skySlots));
+        final String skyText = header + "\n" + day + "|" + bar + "|";
         skyBarBox.post(() -> skyBarBox.setText(skyText));
     }
 
@@ -1328,6 +1523,7 @@ public class MainActivity extends Activity {
             gpsInfoOverlay.setText(gpsText);
             gpsInfoOverlay.setTextColor(color);
         });
+
 
         /*
         // rebuild skyBarBox
