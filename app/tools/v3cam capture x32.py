@@ -6,7 +6,7 @@ import signal
 import sys
 from zoneinfo import ZoneInfo
 
-# ---------------------------------------------------------------------------
+#
 # USAGE
 #   python vXcam_capture_v06.py [cam] [mode]
 #   cam  : v3 (default) or v1
@@ -17,11 +17,11 @@ from zoneinfo import ZoneInfo
 #   python vXcam_capture_v06.py v1           # v1 fast
 #   python vXcam_capture_v06.py v3 normal    # v3 normal
 #   python vXcam_capture_v06.py v1 normal    # v1 normal
-# ---------------------------------------------------------------------------
+#
 
-# ---------------------------------------------------------------------------
+#
 # PARSE ARGS
-# ---------------------------------------------------------------------------
+#
 
 cam  = sys.argv[1].lower() if len(sys.argv) > 1 else "v3"
 mode = sys.argv[2].lower() if len(sys.argv) > 2 else "fast"
@@ -34,7 +34,7 @@ if mode not in ("normal", "fast"):
     print(f"ERROR: mode must be normal or fast, got '{mode}'")
     sys.exit(1)
 
-# ---------------------------------------------------------------------------
+#
 # CONFIG TABLE
 #
 # Backoff start and ceiling are staggered so four simultaneous instances
@@ -45,7 +45,7 @@ if mode not in ("normal", "fast"):
 #   v3 normal :59:20   ffmpeg fires :59:59
 #   v1 fast   :59:35   ffmpeg fires :59:45
 #   v1 normal :59:40   ffmpeg fires :59:59
-# ---------------------------------------------------------------------------
+#
 
 CONFIGS = {
     ("v3", "fast"): {
@@ -127,18 +127,18 @@ YTDLP_CMD = [
     "--extractor-args", "youtube:player_client=tv_embedded",
 ]
 
-# ---------------------------------------------------------------------------
+#
 # TIMEZONE
-# ---------------------------------------------------------------------------
+#
 
 HST = ZoneInfo("Pacific/Honolulu")
 
 def now_hst():
     return datetime.datetime.now(HST)
 
-# ---------------------------------------------------------------------------
+#
 # HELPERS
-# ---------------------------------------------------------------------------
+#
 
 def log(msg):
     ts = now_hst().strftime("%Y-%m-%d %H:%M:%S")
@@ -166,9 +166,9 @@ def wait_until_epoch(target):
             break
         time.sleep(min(0.05, remaining))
 
-# ---------------------------------------------------------------------------
+#
 # yt-dlp URL FETCH (exponential backoff)
-# ---------------------------------------------------------------------------
+#
 
 def fetch_stream_url():
     backoff = BACKOFF_START
@@ -199,9 +199,9 @@ def fetch_stream_url():
         time.sleep(backoff)
         backoff = min(backoff * 2, BACKOFF_CEILING)
 
-# ---------------------------------------------------------------------------
+#
 # FFMPEG LAUNCH
-# ---------------------------------------------------------------------------
+#
 
 def start_ffmpeg_normal(stream_url, outfile):
     duration = max(1.0, seconds_until_next_hour() + 1)
@@ -246,7 +246,7 @@ def start_ffmpeg_fast(stream_url, outfile):
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL)
 
-# ---------------------------------------------------------------------------
+#
 # PROCESS TRACKING
 #
 # _active  : list of {"proc": Popen, "filename": str} for all living children.
@@ -257,15 +257,15 @@ def start_ffmpeg_fast(stream_url, outfile):
 #            never pruned, always overwritten on each new spawn.
 #            _active[-1] cannot be used for this purpose because pruning
 #            shifts the list and would lose the reference to the current job.
-# ---------------------------------------------------------------------------
+#
 
 _active = []
 _latest = None
 _stop   = False
 
-# ---------------------------------------------------------------------------
+#
 # SPAWN - fetch URL, start ffmpeg, update _active and _latest
-# ---------------------------------------------------------------------------
+#
 
 def spawn(label=""):
     global _latest
@@ -283,9 +283,9 @@ def spawn(label=""):
     _latest = entry
     return entry
 
-# ---------------------------------------------------------------------------
+#
 # POLL - sweep _active, log obituaries, return True if _latest has exited
-# ---------------------------------------------------------------------------
+#
 
 def poll():
     global _active
@@ -302,9 +302,9 @@ def poll():
     _active[:] = still_alive
     return latest_gone
 
-# ---------------------------------------------------------------------------
+#
 # GRACEFUL KILL
-# ---------------------------------------------------------------------------
+#
 
 def kill_proc(proc, label):
     if proc is None or proc.poll() is not None:
@@ -331,9 +331,9 @@ def kill_proc(proc, label):
     proc.kill()
     proc.wait()
 
-# ---------------------------------------------------------------------------
+#
 # SHUTDOWN HANDLER
-# ---------------------------------------------------------------------------
+#
 
 def _shutdown(sig, frame):
     global _stop
@@ -346,7 +346,7 @@ def _shutdown(sig, frame):
 signal.signal(signal.SIGINT,  _shutdown)
 signal.signal(signal.SIGTERM, _shutdown)
 
-# ---------------------------------------------------------------------------
+#
 # WAIT FOR TRIGGER
 #
 # Waits until YTDLP_LEAD_SECS before the next hour so fetch_stream_url()
@@ -355,7 +355,7 @@ signal.signal(signal.SIGTERM, _shutdown)
 # Polls every POLL_INTERVAL seconds.  If _latest has exited prematurely,
 # a panic respawn fires immediately.  The trigger wait then continues for
 # the same hour boundary - the panic child covers the gap.
-# ---------------------------------------------------------------------------
+#
 
 def wait_for_trigger():
     secs_to_hour  = seconds_until_next_hour()
@@ -371,11 +371,11 @@ def wait_for_trigger():
             log("Latest child exited prematurely - panic respawn")
             spawn("panic respawn")
 
-# ---------------------------------------------------------------------------
+#
 # LIE-LOW - deliberate rest period between cycles.
 # Polls for obituaries only - no respawn logic here.
 # The main loop handles the next cycle naturally after lie-low ends.
-# ---------------------------------------------------------------------------
+#
 
 def lie_low():
     pause = random.randint(LIELOW_MIN_SECS, LIELOW_MAX_SECS)
@@ -386,9 +386,9 @@ def lie_low():
         time.sleep(sleep_for)
         poll()   # log obituaries only, no action taken
 
-# ---------------------------------------------------------------------------
+#
 # MAIN LOOP
-# ---------------------------------------------------------------------------
+#
 
 def main():
     global _latest

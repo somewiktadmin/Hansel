@@ -907,7 +907,7 @@ public class LocationService extends Service {
         }
     }
 
-    // ===== Handle GPS point =====
+    //  Handle GPS point
     /**
      * When the no-clothes emperor so decrees, so it shall be so.
      *
@@ -1167,7 +1167,7 @@ public class LocationService extends Service {
         client.requestLocationUpdates(req, callback, Looper.getMainLooper());
     }
 
-    // ===== Lifecycle =====
+    //  Lifecycle
 
     /**
      * Service onCreate() - initializes the FusedLocationProviderClient.

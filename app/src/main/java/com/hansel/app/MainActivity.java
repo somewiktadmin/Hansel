@@ -680,10 +680,10 @@ public class MainActivity extends Activity {
     }
 
 
-// ====
+//
 // Call this from the location callback whenever a new fix arrives.
 // All values reflect the same instant - timestamp is honest last-fix time.
-// ====
+//
 
     /**
      * Called from handleLocation() (1Hz live) and handleReplayPoint().
@@ -714,9 +714,9 @@ public class MainActivity extends Activity {
         rebuildGpsInfoOverlay();
     }
 
-// ====
+//
 // Helpers
-// ====
+//
 
     /**
      *  Returns OSMDroid cache hit rate as "nn.n%" or "n/a" if unavailable.
@@ -863,7 +863,7 @@ public class MainActivity extends Activity {
         return d + (153 * mm + 2) / 5 + 365L * yy + yy / 4 - yy / 100 + yy / 400 - 32045;
     }
 
-// ====
+
 
     /**
      * Returns [astroRise, nautRise, civilRise, civilSet, nautSet, astroSet]
@@ -1525,7 +1525,77 @@ public class MainActivity extends Activity {
         });
 
 
-        /*
+
+
+        /** ascii art time
+         *
+
+moon     ; chem - moon stuff - 07 Jun 2026  12:39 PM ; 07 Jun 2026  12:40 PM
+         ; USER>zr  f date=$h:1:$h+31 d ^moon
+         s date=$g(date,$h)
+         s rd=58079 ; 58079 = 2000-01-06 18:14 UTC reference new moon date
+         ;Unicode 0x1F311-0x1F318 = NM,WxC,FW,WxG,FM,WnG,LQ,WnC
+         s delta=date-rd
+         s phase=delta#29.53059,phase=(phase*28/29.53059)\1,p=""
+         s p=p_"NM,WxC01,WxC02,WxC03,WxC04,WxC05,WxC06,"
+         s p=p_"FQ,WxG08,WxG09,WxG10,WxG11,WxG12,WxG13,"
+         s p=p_"FM,WnG13,WnG12,WnG11,WnG10,WnG09,WnG08,"
+         s p=p_"LQ,WnC06,WnC05,WnC04,WnC03,WnC02,WnG01"
+         w $zd(date,3)," "
+         w $j($p(p,",",phase),6)," (",$j(phase,2)," of 29)  "
+         k hrs
+         f hr=0:1:23 s hrs(hr)="*" ; start optimal
+         f hr=5:1:17 s hrs(hr)="." ; daylight no viewing - adjust for lat,lon someday
+         s d=(phase-22+29)#29,starth=(24*d)/29\1
+         s nm=$s(phase<9:"n",phase>21:"n",1:"m")
+         f hr=starth+1:1:starth+10 s h=hr#24,x=hrs(h),hrs(h)=$s(x="*":nm,1:"'")
+         s hr=starth s h=hr#24,x=hrs(h),hrs(h)=$s(x="*":"\",1:",")
+         s hr=starth+11 s h=hr#24,x=hrs(h),hrs(h)=$s(x="*":"/",1:",")
+         f h=0:1:23 w hrs(((h+11)#24))," "
+         w !
+         q
+
+
+USER>zr  f date=$h-5:1:$h+31 d ^moon
+2026-06-13  WnC03 (26 of 29)  ' ' ' , . . . * * * * * * * * * \ n ' ' ' ' ' '
+2026-06-14  WnC02 (27 of 29)  ' ' ' ' , . . * * * * * * * * * * \ ' ' ' ' ' '
+2026-06-15        ( 0 of 29)  ' ' ' ' ' , . * * * * * * * * * * * , ' ' ' ' '
+2026-06-16     NM ( 1 of 29)  ' ' ' ' ' ' , * * * * * * * * * * * . , ' ' ' '
+2026-06-17  WxC01 ( 2 of 29)  ' ' ' ' ' ' ' / * * * * * * * * * * . . , ' ' '
+2026-06-18  WxC02 ( 3 of 29)  ' ' ' ' ' ' ' n / * * * * * * * * * . . . , ' '
+2026-06-19  WxC03 ( 4 of 29)  ' ' ' ' ' ' ' n n / * * * * * * * * . . . . , '
+2026-06-20  WxC04 ( 5 of 29)  ' ' ' ' ' ' ' n n / * * * * * * * * . . . . , '
+2026-06-21  WxC05 ( 6 of 29)  ' ' ' ' ' ' ' n n n / * * * * * * * . . . . . ,
+2026-06-22  WxC06 ( 7 of 29)  , ' ' ' ' ' ' n n n n / * * * * * * . . . . . .
+2026-06-23     FQ ( 8 of 29)  . , ' ' ' ' ' n n n n n / * * * * * . . . . . .
+2026-06-24  WxG08 ( 9 of 29)  . . , ' ' ' ' m m m m m m / * * * * . . . . . .
+2026-06-25  WxG08 ( 9 of 29)  . . , ' ' ' ' m m m m m m / * * * * . . . . . .
+2026-06-26  WxG09 (10 of 29)  . . . , ' ' ' m m m m m m m / * * * . . . . . .
+2026-06-27  WxG10 (11 of 29)  . . . , ' ' ' m m m m m m m / * * * . . . . . .
+2026-06-28  WxG11 (12 of 29)  . . . . , ' ' m m m m m m m m / * * . . . . . .
+2026-06-29  WxG12 (13 of 29)  . . . . . , ' m m m m m m m m m / * . . . . . .
+2026-06-30  WxG13 (14 of 29)  . . . . . . , m m m m m m m m m m / . . . . . .
+2026-07-01     FM (15 of 29)  . . . . . . . \ m m m m m m m m m m , . . . . .
+2026-07-02  WnG13 (16 of 29)  . . . . . . . * \ m m m m m m m m m ' , . . . .
+2026-07-03  WnG12 (17 of 29)  . . . . . . . * \ m m m m m m m m m ' , . . . .
+2026-07-04  WnG11 (18 of 29)  . . . . . . . * * \ m m m m m m m m ' ' , . . .
+2026-07-05  WnG10 (19 of 29)  . . . . . . . * * * \ m m m m m m m ' ' ' , . .
+2026-07-06  WnG09 (20 of 29)  . . . . . . . * * * * \ m m m m m m ' ' ' ' , .
+2026-07-07  WnG08 (21 of 29)  . . . . . . . * * * * * \ m m m m m ' ' ' ' ' ,
+2026-07-08     LQ (22 of 29)  , . . . . . . * * * * * * \ n n n n ' ' ' ' ' '
+2026-07-09  WnC06 (23 of 29)  , . . . . . . * * * * * * \ n n n n ' ' ' ' ' '
+2026-07-10  WnC05 (24 of 29)  ' , . . . . . * * * * * * * \ n n n ' ' ' ' ' '
+2026-07-11  WnC04 (25 of 29)  ' ' , . . . . * * * * * * * * \ n n ' ' ' ' ' '
+2026-07-12  WnC03 (26 of 29)  ' ' ' , . . . * * * * * * * * * \ n ' ' ' ' ' '
+2026-07-13  WnC02 (27 of 29)  ' ' ' ' , . . * * * * * * * * * * \ ' ' ' ' ' '
+2026-07-14  WnC02 (27 of 29)  ' ' ' ' , . . * * * * * * * * * * \ ' ' ' ' ' '
+2026-07-15        ( 0 of 29)  ' ' ' ' ' , . * * * * * * * * * * * , ' ' ' ' '
+2026-07-16     NM ( 1 of 29)  ' ' ' ' ' ' , * * * * * * * * * * * . , ' ' ' '
+2026-07-17  WxC01 ( 2 of 29)  ' ' ' ' ' ' ' / * * * * * * * * * * . . , ' ' '
+2026-07-18  WxC02 ( 3 of 29)  ' ' ' ' ' ' ' n / * * * * * * * * * . . . , ' '
+2026-07-19  WxC03 ( 4 of 29)  ' ' ' ' ' ' ' n n / * * * * * * * * . . . . , '
+
+
         // rebuild skyBarBox
         if (skyBarBox == null) return;
         List<String> snapshot = new java.util.ArrayList<>(skyBarLines);
