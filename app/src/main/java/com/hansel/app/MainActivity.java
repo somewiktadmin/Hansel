@@ -18,6 +18,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -42,108 +43,422 @@ import java.io.File;
 
 /**
  * Hansel v0.987 main activity.
- *
+ * <p>
  * TODO: Rewrite this Javadoc block once OSMDroid integration and replay are stable.
  *
  * <p>Future: MainActivity and the WebView UI are destined to become a
  * separate viewer app (Gretel).  The logging core - LocationService and
  * its file I/O - will move to a standalone headless Hansel app.  That
  * split is post-v1.0.</p>
- *
+ * <p>
  * TODO Consolidate the two MANAGE_ALL_FILES blocks into one, in the right
- *       place, and confirm it actually works on the target devices.
+ * place, and confirm it actually works on the target devices.
  * TODO: Add a "change folder" button or menu item so the user can re-pick
- *       the working directory without reinstalling.
+ * the working directory without reinstalling.
  * todo: Add BootReceiver to auto-resume LocationService after reboot, then
- *       remove startLoggingDefault() from this class entirely.
+ * remove startLoggingDefault() from this class entirely.
  */
 public class MainActivity extends Activity {
 
+    static final String PREFS_NAME = "HanselPrefs";
+    static final String PREF_TREE_URI = "tree_uri"; //Hansel ndJSON logs
+    static final String PREF_TILE_URI = "3rd tile cache layer"; // supplemental tile cache on SD card
+    static final String PREF_SPOOL_URI = "cloud uploads"; // cloud upload spool directory
+    private static final int REQUEST_TREE = 1094; // At Hansel v1 and 0.94, started using the number 1094
+    //public static  SeekBar zoomSlider;
+    //public static  boolean sliderTracking = false; // suppress map->slider echo
+    private static final int REQUEST_TILE = 1095;
+    private static final int REQUEST_SPOOL = 1096;
+    // breadcrumb dot color - toasted white bread gold
+    private static final int REPLAY_DOT_COLOR = 0xFFD4A017;
+    // TODO: make this a SharedPreferences user setting, range 100-60000
+    private static final int MAX_REPLAY_POINTS = 2500;
+    // tracks all breadcrumb dot markers for pruning and clearing
+    private static final java.util.List<org.osmdroid.views.overlay.Marker>
+            replayDots = new java.util.ArrayList<>();
     public static WebView webView;
     public static org.osmdroid.views.MapView mapView;
     public static LocationService locationService;
-    public static MainActivity ma;
-
-    public static  TextView replayPausedFloatie;
-    //public static  SeekBar zoomSlider;
-    //public static  boolean sliderTracking = false; // suppress map->slider echo
-
-    private static final int REQUEST_TREE = 1094; // At Hansel v1 and 0.94, started using the number 1094
-    private static final int REQUEST_TILE = 1095;
-    private static final int REQUEST_SPOOL= 1096;
-
-    static final String PREFS_NAME    = "HanselPrefs";
-    static final String PREF_TREE_URI = "tree_uri"; //Hansel ndJSON logs
-    static final String PREF_TILE_URI = "3rd tile cache layer"; // supplemental tile cache on SD card
-    static final String PREF_SPOOL_URI= "cloud uploads"; // cloud upload spool directory
-
-    public static MyLocationNewOverlay locationOverlay;
     //private CompassOverlay compassOverlay;
-
+    public static MainActivity ma;
+    public static TextView replayPausedFloatie;
+    public static MyLocationNewOverlay locationOverlay;
     public static TextView gpsInfoOverlay;
     public static TextView skyBarBox;
-
-    /** Cached center overlay data - updated on pan/zoom/replay. */
-    public static double zoomerLat  = 0;
-    public static double zoomerLon  = 0;
-    public static double zoomerAlt  = 0;
-    public static int    zoomerZoom = 0;
-
+    /**
+     * Cached center overlay data - updated on pan/zoom/replay.
+     */
+    public static double zoomerLat = 0;
+    public static double zoomerLon = 0;
+    public static double zoomerAlt = 0;
+    public static int zoomerZoom = 0;
     public static Button btnMe;
     public static Button btnHMM;
     public static Button btnZoomIn;
     public static Button btnZoomOut;
-
-    /** Cached status overlay data - updated 1Hz from handleLocation(). */
+    /**
+     * Cached status overlay data - updated 1Hz from handleLocation().
+     */
     public static String statusLine1 = "";
-
-    /** Usable line count in gpsInfoOverlay - measured after layout. */
+    /**
+     * Usable line count in gpsInfoOverlay - measured after layout.
+     */
     public static int overlayLines = 21;
-    /** Usable character width of gpsInfoOverlay - measured after layout. */
+    /**
+     * Usable character width of gpsInfoOverlay - measured after layout.
+     */
     public static int overlayChars = 40;
-
     public static boolean replayFollowMode = true;
-
     public static boolean updatingMap = false;
     public static boolean replayInProgress = false;
-
-    public static org.osmdroid.views.overlay.Marker   replayHeadMarker;
-    public static boolean  liveFollowMode  = true;
-
+    public static org.osmdroid.views.overlay.Marker replayHeadMarker;
+    public static boolean liveFollowMode = true;
     public static TextView liveUpdatesPausedFloatie;
-
+    public static boolean programmingScroll = false; //for animateTo() scrolling
     private static android.graphics.drawable.Drawable replayDotDrawable = null;
 
-    public static boolean programmingScroll = false; //for animateTo() scrolling
+    /**
+     * todo update this comment
+     */
+    private static android.graphics.drawable.Drawable getReplayDot() {
+        if (replayDotDrawable != null) return replayDotDrawable;
+        android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(
+                8, 8, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas c = new android.graphics.Canvas(bm);
+        android.graphics.Paint p = new android.graphics.Paint(
+                android.graphics.Paint.ANTI_ALIAS_FLAG);
+        p.setColor(REPLAY_DOT_COLOR);
+        c.drawCircle(4, 4, 2f, p);
+        replayDotDrawable = new android.graphics.drawable.BitmapDrawable(
+                mapView.getResources(), bm);
+        return replayDotDrawable;
+    }
 
-    // breadcrumb dot color - toasted white bread gold
-    private static final int REPLAY_DOT_COLOR = 0xFFD4A017;
+    // resumeLive: re-enable live map following.  Does NOT touch log files,
+    // does NOT call JS stop() - that caused log rotation on every pan.
+    // Replay is stopped by setting replayInProgress=false only; the JS
+    // replay interval will exhaust naturally or be stopped separately.
+    public static void resumeLive() {
+        replayInProgress = false;
+        replayFollowMode = true;
+        liveFollowMode = true;
+        btnMe.setTextColor(Color.GREEN);
+        liveUpdatesPausedFloatie.setVisibility(View.GONE);
+        replayPausedFloatie.setVisibility(View.GONE);
+        if (locationOverlay.getMyLocation() != null) {
+            mapView.getController().setZoom(15);
+            programmingScroll = true;
+            //mapView.getController().animateTo( locationOverlay.getMyLocation() );
+            mapView.getController().setCenter(locationOverlay.getMyLocation());
+        }
+    }
 
-    // TODO: make this a SharedPreferences user setting, range 100-60000
-    private static final int MAX_REPLAY_POINTS = 2500;
+    /**
+     * "Don't jump when not nearby"
+     * <p>
+     * Returns true if the last 2 replay points are "nearby" the given point -
+     * defined as matching truncated lat and lon to 3 decimal places.
+     * Used to gate animateTo() so we only follow when the device is holding still.
+     */
+    private static boolean replayIsNearby(GeoPoint pt) {
+        if (replayDots.size() < 2) return false;
+        String tLat = truncate3(pt.getLatitude());
+        String tLon = truncate3(pt.getLongitude());
+        // check last 2 dots
+        for (int i = replayDots.size() - 2; i < replayDots.size(); i++) {
+            GeoPoint p = replayDots.get(i).getPosition();
+            if (!truncate3(p.getLatitude()).equals(tLat)) return false;
+            if (!truncate3(p.getLongitude()).equals(tLon)) return false;
+        }
+        return true;
+    }
 
-    // tracks all breadcrumb dot markers for pruning and clearing
-    private static final java.util.List<org.osmdroid.views.overlay.Marker>
-            replayDots = new java.util.ArrayList<>();
+
+    /*
+     * Syncs the zoom slider thumb to the current map zoom level.
+     * No-op while the user is actively dragging the slider (sliderTracking == true)
+     * to avoid feedback loops.
+     */
+    /*
+    private void syncSliderToMap() {
+        if (!sliderTracking) {
+            int z = (int) Math.round(mapView.getZoomLevelDouble()) - 1;
+            zoomSlider.setProgress(Math.max(0, Math.min(z, zoomSlider.getMax())));
+        }
+    }
+     */
+
+    private static String truncate3(double v) {
+        // truncate to 3 decimal places without rounding
+        long shifted = (long) (v * 1000);
+        return Long.toString(shifted);
+    }
+
+    /**
+     * Called from WebAppInterface.replayPoint() on each replay step.
+     * Adds the point to the current polyline segment.  If the jump
+     * from the last point exceeds one mile, drops a dot at the remote
+     * point and starts a fresh segment - map does not follow across
+     * the gap.  Enforces MAX_REPLAY_POINTS by removing the oldest
+     * segment when exceeded.
+     * <p>
+     * Handles a single replay point from JS.
+     * Plots a breadcrumb dot, prunes oldest if over MAX_REPLAY_POINTS,
+     * and follows only when last 2 points are nearby (5 decimal truncation).
+     *
+     * @param data JSON string from JS, contains t, lat, lon, etc.
+     */
+    public static void handleReplayPoint(String data) {
+        mapView.post(() -> {
+            try {
+                org.json.JSONObject d = new org.json.JSONObject(data);
+                if (!d.has("t")) return;
+                double lat = d.getDouble("lat");
+                double lon = d.getDouble("lon");
+                GeoPoint pt = new GeoPoint(lat, lon);
+
+                // plot breadcrumb dot
+                org.osmdroid.views.overlay.Marker dot =
+                        new org.osmdroid.views.overlay.Marker(mapView);
+                dot.setPosition(pt);
+                dot.setAnchor(
+                        org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
+                        org.osmdroid.views.overlay.Marker.ANCHOR_CENTER);
+                dot.setIcon(getReplayDot());
+                dot.setTitle("");
+                mapView.getOverlays().add(dot);
+                replayDots.add(dot);
+
+                // prune oldest dot if over limit
+                if (replayDots.size() > MAX_REPLAY_POINTS) {
+                    org.osmdroid.views.overlay.Marker oldest = replayDots.remove(0);
+                    mapView.getOverlays().remove(oldest);
+                }
+
+                replayHeadMarker.setPosition(pt);
+
+                if (replayFollowMode && replayIsNearby(pt)) {
+                    programmingScroll = true;
+                    //mapView.getController().animateTo(pt);
+                    mapView.getController().setCenter(pt);
+                }
+
+                mapView.invalidate();
+                zoomerLat = lat;
+                zoomerLon = lon;
+                zoomerAlt = d.optDouble("alt", 0);
+                zoomerZoom = (int) Math.round(mapView.getZoomLevelDouble());
+                rebuildGpsInfoOverlay();
+                SkyBar.updateSkyOverlay(d.getString("t").substring(0, 10));
+
+            } catch (Exception e) {
+                Log.e("Hansel",
+                        "replayPoint error: " + e.getMessage());
+            }
+        }); //evil post()
+    }
+
+    /**
+     * Clears all replay overlays and resets state.
+     * Call on stop, rewind, or new file load.
+     */
+    public static void clearReplay() {
+        for (org.osmdroid.views.overlay.Marker dot : replayDots) {
+            mapView.getOverlays().remove(dot);
+        }
+        replayDots.clear();
+        liveFollowMode = true;
+        mapView.invalidate();
+    }
+
+    /**
+     * Creates a filled circle bitmap for breadcrumb dots.
+     * Toasted-bread gold, fixed screen size, zoom-invariant.
+     *
+     private static android.graphics.drawable.Drawable makeReplayDot() {
+     android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(
+     10, 10, android.graphics.Bitmap.Config.ARGB_8888);
+     android.graphics.Canvas c = new android.graphics.Canvas(bm);
+     android.graphics.Paint p = new android.graphics.Paint(
+     android.graphics.Paint.ANTI_ALIAS_FLAG);
+     p.setColor(REPLAY_DOT_COLOR);
+     c.drawCircle(5, 5, 3.5f, p);
+     return new android.graphics.drawable.BitmapDrawable(
+     mapView.getResources(), bm);
+     }
+     */
+
+    /**
+     * Called from handleLocation() (1Hz live) and handleReplayPoint().
+     * Updates cached status fields and triggers a full overlay rebuild.
+     *
+     * @param fixTime timestamp string yyyy-MM-dd_HH-mm-ss HST.
+     * @param lat     latitude decimal degrees.
+     * @param lon     longitude decimal degrees.
+     * @param altFt   altitude in feet.
+     * @param spdMph  speed in MPH.
+     * @param crsDeg  course in degrees from north (not shown - arrow shows it graphically).
+     */
+    public static void updateGpsInfoOverlay(String fixTime, double lat, double lon,
+                                            double altFt, double spdMph, double crsDeg) {
+        if (gpsInfoOverlay == null) return;
+
+        // translation of the javascript timestamp format
+        String ts = fixTime.replace("_", " ")
+                .replaceAll("-(\\d{2})-(\\d{2})$", ":$1:$2");
+
+        // mostCurrentGPS line: timestamp first, lat, lon, alt, spd
+        // For example: 2026-06-08 18:36:21  19.411411 -155.269269  1242ft  0 MPH
+        statusLine1 = String.format(java.util.Locale.US,
+                "%s  %.6f %.6f  %dft  %d MPH",
+                ts, lat, lon, (int) altFt, (int) spdMph);
+
+        SkyBar.updateSkyOverlay(fixTime.substring(0, 10));
+        rebuildGpsInfoOverlay();
+    }
+
+    /**
+     * Returns OSMDroid cache hit rate as "nn.n%" or "n/a" if unavailable.
+     * TODO: find a public API for OSMDroid 6.1.18 cache hit rate.
+     * TODO: cache my files atop of their bad caching and calculate my own success rate
+     */
+    private static String getCacheRate() {
+        return "n/a";
+    }
+
+    /**
+     * Reads the first cpu thermal zone and converts to Fahrenheit.
+     * Supposedly manufacturer-specific code, but doesn't work on any phone on earth.
+     */
+    private static float getCpuTempF() {
+        try {
+            java.io.BufferedReader br = new java.io.BufferedReader(
+                    new java.io.FileReader(
+                            "/sys/class/thermal/thermal_zone0/temp"));
+            float raw = Float.parseFloat(br.readLine().trim());
+            br.close();
+            // most devices report millidegrees C, some report degrees C
+            float c = raw > 1000 ? raw / 1000f : raw;
+            return c * 9f / 5f + 32f;
+        } catch (Exception e) {
+            return 0f;
+        }
+    }
+
+    private static boolean verifyCacheWritable(java.io.File cacheDir) {
+        try {
+            if (!cacheDir.exists()) cacheDir.mkdirs();
+            java.io.File test = new java.io.File(cacheDir, ".writetest");
+            test.createNewFile();
+            test.delete();
+            return true;
+        } catch (Exception e) {
+            Log.e("Hansel", "cache not writable: "
+                    + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Updates cached center overlay fields and triggers overlay rebuild.
+     * Called from onScroll(), onZoom(), and handleReplayPoint().
+     * Alt is 0 when called from pan/zoom (shown as "alt:?").
+     * TODO: look up nearest recorded alt from altitude database within 25ft.
+     *
+     * @param lat   map center latitude decimal degrees.
+     * @param lon   map center longitude decimal degrees.
+     * @param altFt recorded altitude feet, 0 if unknown.
+     * @param zoom  current map zoom level.
+     */
+    public static void updateCenterOverlay(double lat, double lon,
+                                           double altFt, int zoom) {
+        zoomerLat = lat;
+        zoomerLon = lon;
+        zoomerAlt = altFt;
+        zoomerZoom = zoom;
+        rebuildGpsInfoOverlay();
+    }
+
+
+//
+// Call this from the location callback whenever a new fix arrives.
+// All values reflect the same instant - timestamp is honest last-fix time.
+//
+
+    /**
+     * Rebuilds and sets gpsInfoOverlay text from cached zoomer fields.
+     * Called by updateGpsInfoOverlay(), updateCenterOverlay(), and
+     * the MapListener on scroll/zoom.
+     * skyBarBox is updated separately by updateSkyOverlay().
+     * <p>
+     * gpsInfoOverlay layout (zero-based):
+     * 0: "Hansel v0.987" left, zoomerLine right-justified with monospace spaces
+     * 1: mostCurrentGPS (timestamp first, lat, lon, alt, spd)
+     */
+    public static void rebuildGpsInfoOverlay() {
+        if (gpsInfoOverlay == null) return;
+
+        // zoomerLine: lat, lon, alt, zoom - right-justified on line 0
+        String altStr = (zoomerAlt > 0)
+                ? String.format(java.util.Locale.US, "%dft", (int) zoomerAlt)
+                : "alt:?";
+        String zoomer = String.format(java.util.Locale.US,
+                "%.6f %.6f %s Z:%d",
+                zoomerLat, zoomerLon, altStr, zoomerZoom);
+        String label = "Hansel v0.987";
+        // pad between label and zoomer to fill overlayChars
+        int spaces = Math.max(1, overlayChars - label.length() - zoomer.length());
+        StringBuilder pad = new StringBuilder();
+        for (int i = 0; i < spaces; i++) pad.append(' ');
+        String line0 = label + pad + zoomer;
+
+        String gpsText = line0 + "\n" + statusLine1;
+
+        int color = liveFollowMode ? Color.GREEN : Color.WHITE;
+        gpsInfoOverlay.post(() -> {
+            gpsInfoOverlay.setText(gpsText);
+            gpsInfoOverlay.setTextColor(color);
+        });
+    }
+
+//
+// Helpers
+//
 
     /**
      * say() convenience debug method because LOGCAT fails most
      * of the time on Android Studio Bumblebee.  Call ma.say() from static methods.
      */
     public void say(String something) {
-        android.util.Log.d("Hansel", something);
+        Log.d("Hansel", something);
         if (locationService != null) {
-            locationService.say( something );
+            locationService.say(something);
         }
     }
 
+/*
+    private static String getCacheRate() {
+        try {
+            org.osmdroid.tileprovider.MapTileProviderBase p =
+                    mapView.getTileProvider();
+            long success = p.mTileCache.getHitCount();
+            long total   = p.mTileCache.getHitCount()
+                    + p.mTileCache.getMissCount();
+            if (total == 0) return "n/a";
+            return String.format(java.util.Locale.US, "%.1f%%",
+                    100.0 * success / total);
+        } catch (Exception e) {
+            return "n/a";
+        }
+    }
+*/
+
     /**
-     *
      * >>> Hybrid mapView / webView split this version <<<
-     *
+     * <p>
      * currently playing with mapView experiments...older webView narrative is still
      * somewhat relevant (gosh, two days ago?) as I try different things.
-     *
+     * <p>
      * Initializes the activity, requests permissions, builds the WebView, and
      * either prompts for a working directory (first launch) or loads the UI and
      * starts the location service (subsequent launches).
@@ -161,16 +476,16 @@ public class MainActivity extends Activity {
      * fires and onActivityResult() handles the response.  If a URI is already
      * stored, the UI loads immediately and startLoggingDefault() starts the
      * service.</p>
-     *
+     * <p>
      * TODO: Runtime permission requests are currently bypassed by manual grant
-     *       at sideload time.  Before any Google Play submission these blocks
-     *       must be tested cold - Google Play requires that the app request
-     *       only the permissions it genuinely needs, at the moment it needs
-     *       them, with a rationale shown to the user.
+     * at sideload time.  Before any Google Play submission these blocks
+     * must be tested cold - Google Play requires that the app request
+     * only the permissions it genuinely needs, at the moment it needs
+     * them, with a rationale shown to the user.
      *
      * @param savedInstanceState Android Activity saved state bundle.  Not used
-     *        here because the WebView reconstructs cleanly from its asset on every
-     *        start.
+     *                           here because the WebView reconstructs cleanly from its asset on every
+     *                           start.
      */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -254,26 +569,26 @@ public class MainActivity extends Activity {
 
         say("FONT" + gpsInfoOverlay.getTypeface().toString());
         //gpsInfoOverlay.post(() -> {
-            if (gpsInfoOverlay.getLineHeight() > 0) {
-                overlayLines = gpsInfoOverlay.getHeight() / gpsInfoOverlay.getLineHeight();
+        if (gpsInfoOverlay.getLineHeight() > 0) {
+            overlayLines = gpsInfoOverlay.getHeight() / gpsInfoOverlay.getLineHeight();
+        }
+        if (gpsInfoOverlay.getPaint() != null && gpsInfoOverlay.getWidth() > 0) {
+            float charW = gpsInfoOverlay.getPaint().measureText("M");
+            float charsW = gpsInfoOverlay.getPaint().measureText("I");
+            if (charsW != charW) {
+                say("Monospace font has been microsofted");
+            } else {
+                say("charsW " + charsW + " is good");
             }
-            if (gpsInfoOverlay.getPaint() != null && gpsInfoOverlay.getWidth() > 0) {
-                float charW = gpsInfoOverlay.getPaint().measureText("M");
-                float charsW =gpsInfoOverlay.getPaint().measureText("I");
-                if (charsW != charW) {
-                    say("Monospace font has been microsofted");
-                } else {
-                    say( "charsW " + charsW + " is good");
-                }
 
-            if (charW > 0) overlayChars = (int)(gpsInfoOverlay.getWidth() / charW);
+            if (charW > 0) overlayChars = (int) (gpsInfoOverlay.getWidth() / charW);
         }
 
         //});
 
-        btnMe      = findViewById(R.id.btnMe);
-        btnHMM     = findViewById(R.id.btnHMM);
-        btnZoomIn  = findViewById(R.id.btnZoomIn);
+        btnMe = findViewById(R.id.btnMe);
+        btnHMM = findViewById(R.id.btnHMM);
+        btnZoomIn = findViewById(R.id.btnZoomIn);
         btnZoomOut = findViewById(R.id.btnZoomOut);
 
         btnMe.setTypeface(courierPrime);
@@ -291,7 +606,7 @@ public class MainActivity extends Activity {
         liveUpdatesPausedFloatie.setOnClickListener(v -> {
             if (replayInProgress) {
                 webView.post(() ->
-                    webView.evaluateJavascript("stopReplay()", null) );
+                        webView.evaluateJavascript("stopReplay()", null));
             } else {
                 resumeLive();
             }
@@ -302,7 +617,7 @@ public class MainActivity extends Activity {
             replayFollowMode = true;
             replayPausedFloatie.setVisibility(View.GONE);
             webView.post(() ->
-                webView.evaluateJavascript("resumeReplay()", null) );
+                    webView.evaluateJavascript("resumeReplay()", null));
         });
 
         // [HMM] - Halemaumau
@@ -374,13 +689,13 @@ public class MainActivity extends Activity {
                     liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
                     replayPausedFloatie.setVisibility(View.VISIBLE);
                     webView.post(() ->
-                        webView.evaluateJavascript("pauseReplay()", null) );
+                            webView.evaluateJavascript("pauseReplay()", null));
                 }
                 IGeoPoint gs = mapView.getMapCenter();
                 zoomerZoom = (int) Math.round(mapView.getZoomLevelDouble());
-                zoomerLat  = gs.getLatitude();
-                zoomerLon  = gs.getLongitude();
-                zoomerAlt  = 0; //TODO get nearest 3 decimal lat,lon altitude or 4 decimal? From my collected data
+                zoomerLat = gs.getLatitude();
+                zoomerLon = gs.getLongitude();
+                zoomerAlt = 0; //TODO get nearest 3 decimal lat,lon altitude or 4 decimal? From my collected data
                 rebuildGpsInfoOverlay();
                 return false;
             }
@@ -464,183 +779,6 @@ public class MainActivity extends Activity {
 
     }
 
-
-
-    /**
-     * todo update this comment
-     */
-    private static android.graphics.drawable.Drawable getReplayDot() {
-        if (replayDotDrawable != null) return replayDotDrawable;
-        android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(
-                8, 8, android.graphics.Bitmap.Config.ARGB_8888);
-        android.graphics.Canvas c = new android.graphics.Canvas(bm);
-        android.graphics.Paint p = new android.graphics.Paint(
-                android.graphics.Paint.ANTI_ALIAS_FLAG);
-        p.setColor(REPLAY_DOT_COLOR);
-        c.drawCircle(4, 4, 2f, p);
-        replayDotDrawable = new android.graphics.drawable.BitmapDrawable(
-                mapView.getResources(), bm);
-        return replayDotDrawable;
-    }
-
-
-    /*
-     * Syncs the zoom slider thumb to the current map zoom level.
-     * No-op while the user is actively dragging the slider (sliderTracking == true)
-     * to avoid feedback loops.
-     */
-    /*
-    private void syncSliderToMap() {
-        if (!sliderTracking) {
-            int z = (int) Math.round(mapView.getZoomLevelDouble()) - 1;
-            zoomSlider.setProgress(Math.max(0, Math.min(z, zoomSlider.getMax())));
-        }
-    }
-     */
-
-
-    // resumeLive: re-enable live map following.  Does NOT touch log files,
-    // does NOT call JS stop() - that caused log rotation on every pan.
-    // Replay is stopped by setting replayInProgress=false only; the JS
-    // replay interval will exhaust naturally or be stopped separately.
-    public static void resumeLive() {
-        replayInProgress = false;
-        replayFollowMode = true;
-        liveFollowMode   = true;
-        btnMe.setTextColor(Color.GREEN);
-        liveUpdatesPausedFloatie.setVisibility(View.GONE);
-        replayPausedFloatie.setVisibility(View.GONE);
-        if (locationOverlay.getMyLocation() != null) {
-            mapView.getController().setZoom(15);
-            programmingScroll = true;
-            //mapView.getController().animateTo( locationOverlay.getMyLocation() );
-            mapView.getController().setCenter( locationOverlay.getMyLocation() );
-        }
-    }
-
-    /**
-     * "Don't jump when not nearby"
-     *
-     * Returns true if the last 2 replay points are "nearby" the given point -
-     * defined as matching truncated lat and lon to 3 decimal places.
-     * Used to gate animateTo() so we only follow when the device is holding still.
-     */
-    private static boolean replayIsNearby(GeoPoint pt) {
-        if (replayDots.size() < 2) return false;
-        String tLat = truncate3(pt.getLatitude());
-        String tLon = truncate3(pt.getLongitude());
-        // check last 2 dots
-        for (int i = replayDots.size() - 2; i < replayDots.size(); i++) {
-            GeoPoint p = replayDots.get(i).getPosition();
-            if (!truncate3(p.getLatitude()).equals(tLat)) return false;
-            if (!truncate3(p.getLongitude()).equals(tLon)) return false;
-        }
-        return true;
-    }
-
-    private static String truncate3(double v) {
-        // truncate to 3 decimal places without rounding
-        long shifted = (long)(v * 1000);
-        return Long.toString(shifted);
-    }
-
-    /**
-     * Creates a filled circle bitmap for breadcrumb dots.
-     * Toasted-bread gold, fixed screen size, zoom-invariant.
-     *
-    private static android.graphics.drawable.Drawable makeReplayDot() {
-        android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(
-                10, 10, android.graphics.Bitmap.Config.ARGB_8888);
-        android.graphics.Canvas c = new android.graphics.Canvas(bm);
-        android.graphics.Paint p = new android.graphics.Paint(
-                android.graphics.Paint.ANTI_ALIAS_FLAG);
-        p.setColor(REPLAY_DOT_COLOR);
-        c.drawCircle(5, 5, 3.5f, p);
-        return new android.graphics.drawable.BitmapDrawable(
-                mapView.getResources(), bm);
-    }
-     */
-
-    /**
-     * Called from WebAppInterface.replayPoint() on each replay step.
-     * Adds the point to the current polyline segment.  If the jump
-     * from the last point exceeds one mile, drops a dot at the remote
-     * point and starts a fresh segment - map does not follow across
-     * the gap.  Enforces MAX_REPLAY_POINTS by removing the oldest
-     * segment when exceeded.
-     *
-     * Handles a single replay point from JS.
-     * Plots a breadcrumb dot, prunes oldest if over MAX_REPLAY_POINTS,
-     * and follows only when last 2 points are nearby (5 decimal truncation).
-     *
-     * @param data JSON string from JS, contains t, lat, lon, etc.
-     */
-    public static void handleReplayPoint(String data) {
-        mapView.post(() -> {
-            try {
-                org.json.JSONObject d = new org.json.JSONObject(data);
-                if (!d.has("t")) return;
-                double lat = d.getDouble("lat");
-                double lon = d.getDouble("lon");
-                GeoPoint pt = new GeoPoint(lat, lon);
-
-                // plot breadcrumb dot
-                org.osmdroid.views.overlay.Marker dot =
-                        new org.osmdroid.views.overlay.Marker(mapView);
-                dot.setPosition(pt);
-                dot.setAnchor(
-                        org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
-                        org.osmdroid.views.overlay.Marker.ANCHOR_CENTER);
-                dot.setIcon(getReplayDot());
-                dot.setTitle("");
-                mapView.getOverlays().add(dot);
-                replayDots.add(dot);
-
-                // prune oldest dot if over limit
-                if (replayDots.size() > MAX_REPLAY_POINTS) {
-                    org.osmdroid.views.overlay.Marker oldest = replayDots.remove(0);
-                    mapView.getOverlays().remove(oldest);
-                }
-
-                replayHeadMarker.setPosition(pt);
-
-                if (replayFollowMode && replayIsNearby(pt)) {
-                    programmingScroll = true;
-                    //mapView.getController().animateTo(pt);
-                    mapView.getController().setCenter(pt);
-                }
-
-                mapView.invalidate();
-                zoomerLat = lat;
-                zoomerLon = lon;
-                zoomerAlt = d.optDouble("alt", 0);
-                zoomerZoom = (int) Math.round(mapView.getZoomLevelDouble());
-                rebuildGpsInfoOverlay();
-                SkyBar.updateSkyOverlay(d.getString("t").substring(0, 10));
-
-            } catch (Exception e) {
-                android.util.Log.e("Hansel",
-                        "replayPoint error: " + e.getMessage());
-            }
-        }); //evil post()
-    }
-
-    /**
-     * Clears all replay overlays and resets state.
-     * Call on stop, rewind, or new file load.
-     */
-    public static void clearReplay() {
-        for (org.osmdroid.views.overlay.Marker dot : replayDots) {
-            mapView.getOverlays().remove(dot);
-        }
-        replayDots.clear();
-        liveFollowMode = true;
-        mapView.invalidate();
-    }
-
-
-
-
     @Override
     public void onResume() {
         super.onResume();
@@ -654,9 +792,9 @@ public class MainActivity extends Activity {
     }
 
     private void initOsmdroid() {
-        android.util.Log.d("Hansel", "initOsmDroid() firing");
+        Log.d("Hansel", "initOsmDroid() firing");
         java.io.File cacheDir = new java.io.File(getExternalFilesDir(null), "tiles");
-        android.util.Log.d("Hansel", "tile cache path: " + cacheDir.getAbsolutePath()
+        Log.d("Hansel", "tile cache path: " + cacheDir.getAbsolutePath()
                 + " exists=" + cacheDir.exists()
                 + " writable=" + cacheDir.canWrite());
         org.osmdroid.config.Configuration.getInstance()
@@ -664,94 +802,8 @@ public class MainActivity extends Activity {
         org.osmdroid.config.Configuration.getInstance()
                 .setOsmdroidTileCache(cacheDir);
         org.osmdroid.config.Configuration.getInstance()
-                .setExpirationOverrideDuration( 1000L * 60 * 60 * 24 * 365 );
+                .setExpirationOverrideDuration(1000L * 60 * 60 * 24 * 365);
     }
-
-
-//
-// Call this from the location callback whenever a new fix arrives.
-// All values reflect the same instant - timestamp is honest last-fix time.
-//
-
-    /**
-     * Called from handleLocation() (1Hz live) and handleReplayPoint().
-     * Updates cached status fields and triggers a full overlay rebuild.
-     *
-     * @param fixTime timestamp string yyyy-MM-dd_HH-mm-ss HST.
-     * @param lat     latitude decimal degrees.
-     * @param lon     longitude decimal degrees.
-     * @param altFt   altitude in feet.
-     * @param spdMph  speed in MPH.
-     * @param crsDeg  course in degrees from north (not shown - arrow shows it graphically).
-     */
-    public static void updateGpsInfoOverlay(String fixTime, double lat, double lon,
-                                            double altFt, double spdMph, double crsDeg) {
-        if (gpsInfoOverlay == null) return;
-
-        // translation of the javascript timestamp format
-        String ts = fixTime.replace("_", " ")
-                .replaceAll("-(\\d{2})-(\\d{2})$", ":$1:$2");
-
-        // mostCurrentGPS line: timestamp first, lat, lon, alt, spd
-        // For example: 2026-06-08 18:36:21  19.411411 -155.269269  1242ft  0 MPH
-        statusLine1 = String.format(java.util.Locale.US,
-                "%s  %.6f %.6f  %dft  %d MPH",
-                ts, lat, lon, (int) altFt, (int) spdMph);
-
-        SkyBar.updateSkyOverlay(fixTime.substring(0, 10));
-        rebuildGpsInfoOverlay();
-    }
-
-//
-// Helpers
-//
-
-    /**
-     *  Returns OSMDroid cache hit rate as "nn.n%" or "n/a" if unavailable.
-     * TODO: find a public API for OSMDroid 6.1.18 cache hit rate.
-     * TODO: cache my files atop of their bad caching and calculate my own success rate
-     */
-    private static String getCacheRate() {
-        return "n/a";
-    }
-
-/*
-    private static String getCacheRate() {
-        try {
-            org.osmdroid.tileprovider.MapTileProviderBase p =
-                    mapView.getTileProvider();
-            long success = p.mTileCache.getHitCount();
-            long total   = p.mTileCache.getHitCount()
-                    + p.mTileCache.getMissCount();
-            if (total == 0) return "n/a";
-            return String.format(java.util.Locale.US, "%.1f%%",
-                    100.0 * success / total);
-        } catch (Exception e) {
-            return "n/a";
-        }
-    }
-*/
-
-    /**
-     *  Reads the first cpu thermal zone and converts to Fahrenheit.
-     *  Supposedly manufacturer-specific code, but doesn't work on any phone on earth.
-     */
-    private static float getCpuTempF() {
-        try {
-            java.io.BufferedReader br = new java.io.BufferedReader(
-                    new java.io.FileReader(
-                            "/sys/class/thermal/thermal_zone0/temp") );
-            float raw = Float.parseFloat( br.readLine().trim() );
-            br.close();
-            // most devices report millidegrees C, some report degrees C
-            float c = raw > 1000 ? raw / 1000f : raw;
-            return c * 9f / 5f + 32f;
-        } catch (Exception e) {
-            return 0f;
-        }
-    }
-
-
 
     /**
      * Receives the result of the ACTION_OPEN_DOCUMENT_TREE folder picker launched
@@ -768,8 +820,9 @@ public class MainActivity extends Activity {
      * finished loading yet.  The JS side calls startLogging() once it is ready.
      * On subsequent launches startLoggingDefault() fires from onCreate() instead,
      * where the timing is safe.</p>
-     *
+     * <p>
      * TODO: Add a "change folder" option before leaving sideload-only stage.
+     *
      * @param requestCode the request that triggered this result.
      * @param resultCode  RESULT_OK on success, RESULT_CANCELED if user dismissed.
      * @param data        the Intent carrying the selected tree URI, or null.
@@ -817,7 +870,7 @@ public class MainActivity extends Activity {
      *
      * <p>Interval defaults to 30_000ms.  The HanselPrefs key is a fossil from an
      * earlier interval-selector design.  Value will always be 30_000 in practice.</p>
-     *
+     * <p>
      * TODO: Remove once BootReceiver is implemented (v0.99).
      */
     private void startLoggingDefault() {
@@ -827,76 +880,5 @@ public class MainActivity extends Activity {
         i.putExtra("interval", interval);
         i.putExtra("rollover", 3600);
         ContextCompat.startForegroundService(this, i);
-    }
-
-
-    private static boolean verifyCacheWritable(java.io.File cacheDir) {
-        try {
-            if (!cacheDir.exists()) cacheDir.mkdirs();
-            java.io.File test = new java.io.File(cacheDir, ".writetest");
-            test.createNewFile();
-            test.delete();
-            return true;
-        } catch (Exception e) {
-            android.util.Log.e("Hansel", "cache not writable: "
-                    + e.getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Updates cached center overlay fields and triggers overlay rebuild.
-     * Called from onScroll(), onZoom(), and handleReplayPoint().
-     * Alt is 0 when called from pan/zoom (shown as "alt:?").
-     * TODO: look up nearest recorded alt from altitude database within 25ft.
-     *
-     * @param lat   map center latitude decimal degrees.
-     * @param lon   map center longitude decimal degrees.
-     * @param altFt recorded altitude feet, 0 if unknown.
-     * @param zoom  current map zoom level.
-     */
-    public static void updateCenterOverlay(double lat, double lon,
-                                           double altFt, int zoom) {
-        zoomerLat  = lat;
-        zoomerLon  = lon;
-        zoomerAlt  = altFt;
-        zoomerZoom = zoom;
-        rebuildGpsInfoOverlay();
-    }
-
-    /**
-     * Rebuilds and sets gpsInfoOverlay text from cached zoomer fields.
-     * Called by updateGpsInfoOverlay(), updateCenterOverlay(), and
-     * the MapListener on scroll/zoom.
-     * skyBarBox is updated separately by updateSkyOverlay().
-     *
-     * gpsInfoOverlay layout (zero-based):
-     *   0: "Hansel v0.987" left, zoomerLine right-justified with monospace spaces
-     *   1: mostCurrentGPS (timestamp first, lat, lon, alt, spd)
-     */
-    public static void rebuildGpsInfoOverlay() {
-        if (gpsInfoOverlay == null) return;
-
-        // zoomerLine: lat, lon, alt, zoom - right-justified on line 0
-        String altStr = (zoomerAlt > 0)
-                ? String.format(java.util.Locale.US, "%dft", (int) zoomerAlt)
-                : "alt:?";
-        String zoomer = String.format(java.util.Locale.US,
-                "%.6f %.6f %s Z:%d",
-                zoomerLat, zoomerLon, altStr, zoomerZoom);
-        String label = "Hansel v0.987";
-        // pad between label and zoomer to fill overlayChars
-        int spaces = Math.max(1, overlayChars - label.length() - zoomer.length());
-        StringBuilder pad = new StringBuilder();
-        for (int i = 0; i < spaces; i++) pad.append(' ');
-        String line0 = label + pad + zoomer;
-
-        String gpsText = line0 + "\n" + statusLine1;
-
-        int color = liveFollowMode ? Color.GREEN : Color.WHITE;
-        gpsInfoOverlay.post(() -> {
-            gpsInfoOverlay.setText(gpsText);
-            gpsInfoOverlay.setTextColor(color);
-        });
     }
 }
