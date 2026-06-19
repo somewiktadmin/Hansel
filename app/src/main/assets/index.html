@@ -174,7 +174,7 @@
 
             // Logging interval in milliseconds.  30_000 is the only correct
             // value - see LocationService.java interval field for the full story.
-            let interval = 5000; // 30000 30_000
+            let interval = 30000; // 30000 30_000
 
             let logLines = [];
             let points = [];
@@ -732,7 +732,7 @@
 
                 document.getElementById("status2").innerText = "MARK pressed";
 
-                if (now - lastMarkTime < 5000) {
+                if (now - lastMarkTime < 30000) {
                     return; // soft debounce: 5 seconds between marks
                 }
 

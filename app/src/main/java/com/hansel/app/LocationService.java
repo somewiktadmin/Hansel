@@ -141,7 +141,7 @@ public class LocationService extends Service {
      *       startLoggingDefault() - it will always be 30_000 and pretending
      *       otherwise is misleading.
      */
-    int interval = 5000; //30000 30_000
+    int interval = 30000; //30000 30_000
 
     /**
      * Minimum GPS request interval in milliseconds.  500ms was tried and
@@ -931,7 +931,7 @@ public class LocationService extends Service {
      * CouRSe is 0 north 90 east 180 south 270 west
      *
      */
-    void handleLocation(Location loc) {
+     void handleLocation(Location loc) {
         try {
             double altFt = loc.hasAltitude() ? loc.getAltitude() * 3.28084 : 0;
 
