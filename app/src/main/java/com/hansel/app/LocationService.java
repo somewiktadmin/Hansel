@@ -1,10 +1,9 @@
-// Hansel - GPS breadcrumb logger v0.987
-// Copyright (C) 2026 GrimmsTales
-// GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
-
+/*
+ * Hansel - GPS breadcrumb logger v0.987
+ * Copyright (C) 2026 GrimmsTales
+ * GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
+ */
 package com.hansel.app;
-
-import static com.hansel.app.MainActivity.mapView;
 
 import android.Manifest;
 import android.app.Service;
@@ -16,6 +15,7 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.util.Log;
 import android.webkit.JavascriptInterface;
 import android.widget.Toast;
 
@@ -141,7 +141,7 @@ public class LocationService extends Service {
      *       startLoggingDefault() - it will always be 30_000 and pretending
      *       otherwise is misleading.
      */
-    int interval = 30000; //30000 30_000
+    int interval = 5000; //30000 30_000
 
     /**
      * Minimum GPS request interval in milliseconds.  500ms was tried and
@@ -204,6 +204,36 @@ public class LocationService extends Service {
      */
     private Handler  hourHandler          = new Handler(Looper.getMainLooper());
     private Runnable hourRotationRunnable;
+
+
+    /**
+     * Loading AndroidStudio Bumblebee, LOGCAT refused to work for the first month,
+     * until I learned that motorola makes you toggle a weird switch in developer
+     * options just to be able to see your own debug messages.
+     *
+     *      LOGGER BUFFER SIZES = 1 MB (minimum, default is OFF.)
+     *
+     * So during the hell month, and especially during the initial project phase,
+     * the only way to see any sort of debug message, was to do it myself.  Sending
+     * 1/2 line of text to a named div id gets old REALLY quick.  So I created a
+     * scrollbox of text, that quickly became the center of the universe for the
+     * entire app.  User needs to see something?  Log it with say().
+     *
+     * Now, doing this from javascript has several challenges.  Because of webview
+     * built into studio, it wasn't so bad to have javascript send to webappinterface
+     * which sent to LocationService which sent to MainActivity to go through
+     * index.html to get a message back to the scrollbox.  But suddently I had
+     * a uniform way to generate a debug message from every layer of the project.
+     *
+     * Then one day, even LOGCAT started working, so these messages get duplicated
+     * over there too, now.
+     *
+     * @param something - just don't say nuthin'
+     */
+    private static void say(String something) {
+        say(something, "locSrvc.");
+    }
+
 
     /**
      * Schedules a file rotation at HH:00:00.001 of the next hour.  Assigns
@@ -346,17 +376,22 @@ public class LocationService extends Service {
         interval = Math.max(newInterval, INTERVAL_FLOOR_MS);
         if (client == null || callback == null) return;
 
+        say("updateInterval.newInterval: " + newInterval);
+        //say("updateInterval.interval: " + interval);
+
+        // Stop the existing registration first.
+        client.removeLocationUpdates(callback);
+
         LocationRequest req = LocationRequest.create()
                 .setInterval(interval)
                 .setFastestInterval(interval)
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
-        if (false)
-            if (ActivityCompat.checkSelfPermission(this,
-                    Manifest.permission.ACCESS_FINE_LOCATION)
-                    == PackageManager.PERMISSION_GRANTED) {
-                client.requestLocationUpdates(req, callback, Looper.getMainLooper());
-            }
+        if (ActivityCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            client.requestLocationUpdates(req, callback, Looper.getMainLooper());
+        }
     }
 
     /**
@@ -440,38 +475,20 @@ public class LocationService extends Service {
     }
 
     /**
-     * Loading AndroidStudio Bumblebee, LOGCAT refused to work for the first month,
-     * until I learned that motorola makes you toggle a weird switch in developer
-     * options just to be able to see your own debug messages.
-     *
-     *      LOGGER BUFFER SIZES = 1 MB (minimum, default is OFF.)
-     *
-     * So during the hell month, and especially during the initial project phase,
-     * the only way to see any sort of debug message, was to do it myself.  Sending
-     * 1/2 line of text to a named div id gets old REALLY quick.  So I created a
-     * scrollbox of text, that quickly became the center of the universe for the
-     * entire app.  User needs to see something?  Log it with say().
-     *
-     * Now, doing this from javascript has several challenges.  Because of webview
-     * built into studio, it wasn't so bad to have javascript send to webappinterface
-     * which sent to LocationService which sent to MainActivity to go through
-     * index.html to get a message back to the scrollbox.  But suddently I had
-     * a uniform way to generate a debug message from every layer of the project.
-     *
-     * Then one day, even LOGCAT started working, so these messages get duplicated
-     * over there too, now.
-     *
-     * @param something - just don't say nuthin'
+     * As long as every class routes through here, all is well.
+     * @param something a debug message
+     * @param module the short class name the message originates from
      */
-    void say(String something) {
-        if (MainActivity.webView == null) return;
-        android.os.Handler h = new android.os.Handler(getMainLooper());
-        h.post(() ->
-                MainActivity.webView.evaluateJavascript(
-                        "say(" + JSONObject.quote(something) + ")",
-                        null
-                )
-        );
+    public static void say(String something, String module) {
+        String tag = "Hansel." + module;
+        Log.d(tag, something);
+        String displayMsg = module + something;
+
+        new android.os.Handler(Looper.getMainLooper()).post(() -> {
+            if (MainActivity.webView == null) return;
+            MainActivity.webView.evaluateJavascript(
+                    "say(" + JSONObject.quote(displayMsg) + ")", null);
+        });
     }
 
     /**
@@ -1178,7 +1195,6 @@ public class LocationService extends Service {
     public void onCreate() {
         super.onCreate();
         instance = this;
-        MainActivity.locationService = this;
         client = LocationServices.getFusedLocationProviderClient(this);
     }
 

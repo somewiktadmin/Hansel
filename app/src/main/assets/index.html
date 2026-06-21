@@ -1,7 +1,14 @@
 <!doctype html>
 <!--
     Hansel GPS breadcrumb logger - v0.987
-    index.html - WebView UI, the only thing the user ever sees.
+    Copyright (C) 2026 GrimmsTales
+    GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
+
+    April 2026:
+     index.html - WebView UI, the only thing the user ever sees.
+    June 2026:
+     Hopefully native app replaces webview entirely with a settings window and
+     and altitude graph on the bottom 2/5ths.
 
     This file runs inside an Android WebView (MainActivity.java).
     All GPS data, file I/O, and system calls go through AndroidBridge,
@@ -19,12 +26,16 @@
 
     map.png is a static background image of the Kilauea summit area,
     bundled as an Android asset alongside this file.  It is 2019-era.
-    OSM tile-based map is a future replacement.
+    OSM tile-based map is the replacement, on top 3/5ths of window, while
+    this legacy WebView gets the bottom 2/5ths.
 
     Sound buttons: case is significant.  "chuff", "CHUFF", and "Chuff"
     are three distinct acoustic observations.  Do not sort, do not
     normalize case, do not deduplicate.  The field researcher chose
-    the label deliberately.
+    the label deliberately.  TODO: rethink the whole thing, editing list
+    from user mode, etc.  Should it all be a pop-up "I HEARD A SOUND"
+    window triggered from a tiny speaker icon?  With a pencil "edit"
+    icon to reorder and/or delete items?
 -->
 <html>
 <head>
@@ -70,6 +81,18 @@
 <body><!-- if I keep this, it will go into a titlebar of a window or similar.
 <h2 title="Hansel-app logs paths. Gretel-app listens.">Hansel - notes v0.987</h2>
 -->
+
+<label>Sample Interval</label>
+<select id="interval" onchange="AndroidBridge.setInterval(this.value)">
+    <option value="1000">1 sec</option>
+    <option selected value="5000">5 sec</option>
+    <option value="15000">15 sec</option>
+    <option value="30000">30 sec</option>
+    <option value="60000">60 sec</option>
+    <option value="300000">5 min</option>
+    <option value="3600000">1 hr</option>
+</select>
+
 <div id="status">Idle</div>
 <pre id="readout">Waiting...</pre>
 
@@ -85,7 +108,8 @@
 
 <canvas height="350" id="map" width="350"></canvas>
 
-<button onclick="stop()">STOP</button>
+<button onclick="start()">START()</button>
+<button onclick="stop()">STOP()</button>
 <button onclick="AndroidBridge.consolidateNow()">Rollup</button>
 
 <button onclick="mark()">MARK ME</button>
@@ -174,7 +198,7 @@
 
             // Logging interval in milliseconds.  30_000 is the only correct
             // value - see LocationService.java interval field for the full story.
-            let interval = 30000; // 30000 30_000
+            let interval = 5000; // 30000 30_000
 
             let logLines = [];
             let points = [];
@@ -732,7 +756,7 @@
 
                 document.getElementById("status2").innerText = "MARK pressed";
 
-                if (now - lastMarkTime < 30000) {
+                if (now - lastMarkTime < 5000) {
                     return; // soft debounce: 5 seconds between marks
                 }
 

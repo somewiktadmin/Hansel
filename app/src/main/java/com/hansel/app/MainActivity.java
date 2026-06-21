@@ -1,9 +1,8 @@
-/**
+/*
  * Hansel - GPS breadcrumb logger v0.987
  * Copyright (C) 2026 GrimmsTales
  * GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
  */
-
 package com.hansel.app;
 
 import android.Manifest;
@@ -78,7 +77,7 @@ public class MainActivity extends Activity {
             replayDots = new java.util.ArrayList<>();
     public static WebView webView;
     public static org.osmdroid.views.MapView mapView;
-    public static LocationService locationService;
+
     //private CompassOverlay compassOverlay;
     public static MainActivity ma;
     public static TextView replayPausedFloatie;
@@ -118,6 +117,12 @@ public class MainActivity extends Activity {
     private static android.graphics.drawable.Drawable replayDotDrawable = null;
 
     /**
+     * say() convenience debug method because LOGCAT fails most
+     * of the time on Android Studio Bumblebee.
+     */
+    public void say(String something) { LocationService.say(something, "mainAct."); }
+
+    /**
      * todo update this comment
      */
     private static android.graphics.drawable.Drawable getReplayDot() {
@@ -128,7 +133,7 @@ public class MainActivity extends Activity {
         android.graphics.Paint p = new android.graphics.Paint(
                 android.graphics.Paint.ANTI_ALIAS_FLAG);
         p.setColor(REPLAY_DOT_COLOR);
-        c.drawCircle(4, 4, 2f, p);
+        c.drawCircle(4, 4, 3f, p);
         replayDotDrawable = new android.graphics.drawable.BitmapDrawable(
                 mapView.getResources(), bm);
         return replayDotDrawable;
@@ -425,16 +430,6 @@ public class MainActivity extends Activity {
 // Helpers
 //
 
-    /**
-     * say() convenience debug method because LOGCAT fails most
-     * of the time on Android Studio Bumblebee.  Call ma.say() from static methods.
-     */
-    public void say(String something) {
-        Log.d("Hansel", something);
-        if (locationService != null) {
-            locationService.say(something);
-        }
-    }
 
 /*
     private static String getCacheRate() {
@@ -491,7 +486,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         ma = this;
-        ma.say("onCreate firing");
+        say("onCreate firing");
 
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
@@ -875,7 +870,7 @@ public class MainActivity extends Activity {
      */
     private void startLoggingDefault() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        int interval = prefs.getInt("last_interval", 30000); //30_000 30000
+        int interval = prefs.getInt("last_interval", 5000); //30_000 30000
         Intent i = new Intent(this, LocationService.class);
         i.putExtra("interval", interval);
         i.putExtra("rollover", 3600);

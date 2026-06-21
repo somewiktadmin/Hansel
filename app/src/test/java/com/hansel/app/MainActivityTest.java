@@ -6,11 +6,9 @@
 
 package com.hansel.app;
 
+import static org.junit.Assert.assertEquals;
+
 import org.junit.Test;
-
-import static org.junit.Assert.*;
-
-import java.time.LocalDate;
 
 /**
  * Example local unit test, which will execute on the development machine (host).

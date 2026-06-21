@@ -1,7 +1,8 @@
-// Hansel - GPS breadcrumb logger v0.987
-// Copyright (C) 2026 GrimmsTales
-// GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
-
+/*
+ * Hansel - GPS breadcrumb logger v0.987
+ * Copyright (C) 2026 GrimmsTales
+ * GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
+ */
 package com.hansel.app;
 
 import android.app.Notification;
@@ -33,6 +34,14 @@ import androidx.core.app.NotificationCompat;
 public class NotificationHelper {
 
     /**
+     * say() convenience debug method because LOGCAT fails most
+     * of the time on Android Studio Bumblebee.
+     */
+    private static void say(String something) {
+        LocationService.say(something, "notiHlpr.");
+    }
+
+    /**
      * Builds and returns the foreground notification for LocationService.
      * Creates the notification channel on SDK 26+ before building.
      *
@@ -56,6 +65,7 @@ public class NotificationHelper {
             nm.createNotificationChannel(channel);
         }
 
+        say(channelId);
         return new NotificationCompat.Builder(ctx, channelId)
                 .setContentTitle("Breadcrumb Logger")
                 .setContentText("Logging GPS in background")

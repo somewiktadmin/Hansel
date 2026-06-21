@@ -7,8 +7,6 @@ package com.hansel.app;
 
 import android.util.Log;
 
-import java.util.List;
-
 /**
  * SKYBAR DESIGN CONTRACT
  *
@@ -68,19 +66,17 @@ public class SkyBar {
     public static String cachedMoon = "";
     public static String[] cachedSun = new String[6];
     /**
-     * Hardcoded Kilauea center coordinates for sky calculations.
+     * Hardcoded Kilauea center coordinates for sky calculations, map re-centering.
      */
     public static double SKY_LAT = 19.411411;
     public static double SKY_LON = -155.269269;
 
     /**
      * say() convenience debug method because LOGCAT fails most
-     * of the time on Android Studio Bumblebee.  Call ma.say() from static methods.
+     * of the time on Android Studio Bumblebee.
      */
-    public static void say(String something) {
-        Log.d("Hansel.SkyBar", something);
-        if (MainActivity.ma != null)
-            MainActivity.ma.say("skyBar." + something);
+    private static void say(String something) {
+            LocationService.say(something, "skyBar.");
     }
 
     /**
@@ -722,19 +718,6 @@ public class SkyBar {
     }
 
     /**
-     * Buckets a "minutes past the biased dark-edge" value into a twilight
-     * character. offsetMin &lt; 0 means still in the lighter band/daylight
-     * (caller returns null in that case).
-     */
-    private static Character skyBucket(double offsetMin) {
-        if (offsetMin < 0) return null;
-        if (offsetMin < SKY_BAND_MIN) return '-';
-        if (offsetMin < 2 * SKY_BAND_MIN) return '=';
-        if (offsetMin < 3 * SKY_BAND_MIN) return '/';
-        return '*';
-    }
-
-    /**
      * Picks how many sky-bar slots fit in the measured character width.
      * Only two candidates are real options - 72 slots (20 min each) or
      * 48 slots (30 min each).  32 and 24 were tried previously and didn't
@@ -936,7 +919,7 @@ public class SkyBar {
         }
 
         /**  Pass 6.  Render. */
-        say("hansel calcSkyBar date:" + date + " sky: " + new String(sky));
+        //say("hansel calcSkyBar date:" + date + " sky: " + new String(sky));
         return new String(sky);
     }
 

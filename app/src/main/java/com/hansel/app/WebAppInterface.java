@@ -1,7 +1,8 @@
-// Hansel - GPS breadcrumb logger v0.987
-// Copyright (C) 2026 GrimmsTales
-// GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
-
+/*
+ * Hansel - GPS breadcrumb logger v0.987
+ * Copyright (C) 2026 GrimmsTales
+ * GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
+ */
 package com.hansel.app;
 
 import android.content.Context;
@@ -9,6 +10,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
+import android.util.Log;
 import android.webkit.JavascriptInterface;
 
 import androidx.annotation.RequiresApi;
@@ -19,6 +21,7 @@ import org.json.JSONArray;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.DuplicateFormatFlagsException;
 
 /**
  * Hansel GPS breadcrumb logger - v0.987.
@@ -52,6 +55,14 @@ public class WebAppInterface {
     Context context;
 
     /**
+     * say() convenience debug method because LOGCAT fails most
+     * of the time on Android Studio Bumblebee.
+     */
+    private static void say(String something) {
+        LocationService.say(something, "webAppInt.");
+    }
+
+    /**
      * Constructs the bridge with the Activity context from MainActivity.
      * The context is used for SharedPreferences access and ContentResolver
      * calls in resolveTreeUriToFile() and getTreeDir().
@@ -82,15 +93,24 @@ public class WebAppInterface {
     /**
      * Sets the GPS logging interval.  Delegates to LocationService.updateInterval().
      *
-     * TODO: updateInterval() is guarded by if(false) in LocationService and
-     *       does nothing.  This method is therefore also a no-op.  Both should
-     *       be removed or properly implemented when interval adjustment is
-     *       revisited post-v1.0.
-     * @param interval requested interval in milliseconds.
+     *          RESTORED AND DELETED TOO MANY TIMES!
+     *          OBVIOUSLY NEEDED, JUST WRONG PROMINENCE.
+     *
+     *       updateInterval() was guarded by if(false) in LocationService and
+     *       did nothing.  This method was therefore also a no-op.  Both should
+     *       be removed or properly implemented each time interval adjustment is
+     *       revisited.  Speed > 5MPH force interval 1000ms?  Speed < 1MPH force
+     *       interval 30000ms?  5000ms?
+     * @param intervalString requested interval in milliseconds.
      */
     @JavascriptInterface
-    public void setInterval(int interval) {
+    public void setInterval(String intervalString) {
+        say("setInterval.interval: " + intervalString);
         if (LocationService.instance != null) {
+            // This next line is amazingly important - using android's WebApp Bridge does not work
+            // properly for int, pass as a string instead and parse here - if you try letting the
+            // broken android interface do it for you, you get interval = 0
+            int interval = Integer.parseInt(intervalString);
             LocationService.instance.updateInterval( interval );
         }
     }
@@ -107,7 +127,7 @@ public class WebAppInterface {
                 MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
         String uriString = prefs.getString(MainActivity.PREF_TREE_URI, null);
         if (uriString == null) {
-            LocationService.instance.say("No folder selected - open app to pick one");
+            say("..No folder selected - open app to pick one");
             return null;
         }
         return DocumentFile.fromTreeUri(context, Uri.parse(uriString));
@@ -136,7 +156,12 @@ public class WebAppInterface {
     public void startLogging(int interval, int rollover) {
         //Prevent doubletap
         if (LocationService.instance != null) {
-            //LocationService.instance.say("startLogging: service already running, skipping");
+            say("startLogging: should not exist!"
+                    + " LocationService.instance: "
+                    + LocationService.instance.toString()
+                    + " service already running, skipping." );
+            //throw new RuntimeException("WebAppInterface.startLogging: MainActivity.locationService: " +
+            //        MainActivity.locationService.toString() );
             return;
         }
         Intent i = new Intent(context, LocationService.class);
@@ -203,24 +228,24 @@ public class WebAppInterface {
         SharedPreferences prefs = context.getSharedPreferences(
                 MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
         String uriString = prefs.getString(MainActivity.PREF_TREE_URI, null);
-        LocationService.instance.say("resolveTreeUri: input=" + uriString);
+        say("resolveTreeUri: input=" + uriString);
 
         if (uriString == null) {
-            LocationService.instance.say("resolveTreeUri: no URI in prefs");
+            say("resolveTreeUri: no URI in prefs");
             return null;
         }
 
         String decoded = Uri.decode(uriString);
         int treeIdx = decoded.indexOf("/tree/");
         if (treeIdx < 0) {
-            LocationService.instance.say("resolveTreeUri: no /tree/ found");
+            say("resolveTreeUri: no /tree/ found");
             return null;
         }
 
         String docId   = decoded.substring(treeIdx + 6);
         int colonIdx   = docId.indexOf(":");
         if (colonIdx < 0) {
-            LocationService.instance.say("resolveTreeUri: no colon in docId=" + docId);
+            say("resolveTreeUri: no colon in docId=" + docId);
             return null;
         }
 
@@ -228,7 +253,7 @@ public class WebAppInterface {
         String path     = docId.substring(colonIdx + 1);
         File result     = new File("/storage/" + volumeId + "/" + path);
 
-        LocationService.instance.say("resolveTreeUri: resolved=" + result.getAbsolutePath());
+        say("resolveTreeUri: resolved=" + result.getAbsolutePath());
         return result;
     }
 
@@ -254,13 +279,13 @@ public class WebAppInterface {
 
         File dir = resolveTreeUriToFile();
         if (dir == null) {
-            LocationService.instance.say("getFileList: could not resolve directory");
+            say("getFileList: could not resolve directory");
             return "[]";
         }
 
         File[] files = dir.listFiles();
         if (files == null || files.length == 0) {
-            LocationService.instance.say("getFileList: no files found in " + dir.getAbsolutePath());
+            say("getFileList: no files found in " + dir.getAbsolutePath());
             return "[]";
         }
 
@@ -271,9 +296,9 @@ public class WebAppInterface {
 
         ndjson.sort((a, b) -> a.getName().compareTo(b.getName()));
 
-        LocationService.instance.say("getFileList: " + ndjson.size() + " files");
+        say("getFileList: " + ndjson.size() + " files");
         for (File f : ndjson) {
-            LocationService.instance.say("  found: " + f.getName());
+            say("found: " + f.getName());
             arr.put(f.getAbsolutePath());
         }
 
@@ -300,7 +325,7 @@ public class WebAppInterface {
      */
     @JavascriptInterface
     public String readFile(String path) {
-        LocationService.instance.say("readFile: " + path);
+        say("readFile: " + path);
         try {
             java.io.InputStream is;
             if (path.startsWith("/")) {
@@ -309,7 +334,7 @@ public class WebAppInterface {
                 is = context.getContentResolver().openInputStream(Uri.parse(path));
             }
             if (is == null) {
-                LocationService.instance.say("readFile: null stream for " + path);
+                say("readFile: null stream for " + path);
                 return "";
             }
 
@@ -321,11 +346,11 @@ public class WebAppInterface {
                 sb.append(line).append("\n");
             }
             br.close();
-            LocationService.instance.say("readFile: done, " + sb.length() + " chars");
+            say("readFile: done, " + sb.length() + " chars");
             return sb.toString();
 
         } catch (Exception e) {
-            LocationService.instance.say("readFile error: " + e.getMessage());
+            say("readFile error: " + e.getMessage());
             return "";
         }
     }
