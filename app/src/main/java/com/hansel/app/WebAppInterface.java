@@ -26,23 +26,23 @@ import java.util.DuplicateFormatFlagsException;
 /**
  * Hansel GPS breadcrumb logger - v0.987.
  *
- * <p>WebAppInterface is the bridge between index.html (JavaScript) and the
+ * WebAppInterface is the bridge between index.html (JavaScript) and the
  * Android Java layer.  Every method annotated @JavascriptInterface is
  * callable from JS as AndroidBridge.methodName().  AndroidBridge is the
  * name assigned in MainActivity.onCreate() when this object is attached
- * to the WebView.</p>
+ * to the WebView.
  *
- * <p>All file I/O here uses direct File access via resolveTreeUriToFile(),
+ * All file I/O here uses direct File access via resolveTreeUriToFile(),
  * not SAF DocumentFile.  resolveTreeUriToFile() hand-parses the SAF tree
  * URI stored in HanselPrefs to recover a plain filesystem path.  This is
  * fragile by design - it depends on the /storage/volumeId/path convention
  * holding across Android versions - but it works on all target devices and
- * is far simpler than the SAF alternative for read operations.</p>
+ * is far simpler than the SAF alternative for read operations.
  *
- * <p>LocationService.instance is used directly throughout this class to
+ * LocationService.instance is used directly throughout this class to
  * call say(), mark(), rotateNow(), and consolidateOldFiles().  The service
  * is either running or it is not - if it is not running, the null checks
- * short-circuit cleanly.</p>
+ * short-circuit cleanly.
  *
  * TODO: Remove or replace setInterval() once updateInterval() is fully
  *       retired from LocationService.
@@ -137,17 +137,17 @@ public class WebAppInterface {
      * Starts LocationService with the given interval and rollover values.
      * Called from index.html start() on page load.
      *
-     * <p>The double-start guard checks LocationService.instance - if the
+     * The double-start guard checks LocationService.instance - if the
      * service is already running, the call is silently ignored.  This is
      * the correct behavior: the JS side calls startLogging() on every page
      * load, and the service may already be running from MainActivity's
      * startLoggingDefault() on subsequent launches.  The commented-out
      * say() below was the diagnostic that confirmed the guard was firing
-     * correctly during hell week.</p>
+     * correctly during hell week.
      *
-     * <p>The interval is persisted to HanselPrefs as last_interval for
+     * The interval is persisted to HanselPrefs as last_interval for
      * startLoggingDefault() to read on the next launch.  In practice this
-     * will always be 30_000.</p>
+     * will always be 30_000.
      *
      * @param interval logging interval in milliseconds.
      * @param rollover file rotation interval in seconds.
@@ -211,18 +211,18 @@ public class WebAppInterface {
      * plain filesystem path as a java.io.File.  Used by getFileList()
      * and readFile() to bypass SAF entirely for read operations.
      *
-     * <p>The parsing assumes the URI contains a /tree/ segment followed
+     * The parsing assumes the URI contains a /tree/ segment followed
      * by a docId of the form volumeId:path.  This convention holds on
      * all target devices but is not guaranteed by the Android API.  If
      * the URI format ever changes - different Android version, different
      * manufacturer - this method will return null and file listing will
      * silently fail.  All intermediate steps are logged via say() to
-     * make failures visible in the scrollbox.</p>
+     * make failures visible in the scrollbox.
      *
-     * <p>This fragility is an acceptable tradeoff.  The SAF alternative
+     * This fragility is an acceptable tradeoff.  The SAF alternative
      * for recursive directory listing requires DocumentFile.listFiles()
      * which cannot traverse subdirectories, making the ./backup/
-     * implementation impossible without this approach.</p>
+     * implementation impossible without this approach.
      */
     private File resolveTreeUriToFile() {
         SharedPreferences prefs = context.getSharedPreferences(
@@ -262,13 +262,13 @@ public class WebAppInterface {
      * in the working directory, sorted chronologically by filename.
      * Called from index.html replay() and replay72h().
      *
-     * <p>Sorting by filename is correct because the filename format
+     * Sorting by filename is correct because the filename format
      * yyyy-MM-dd_HH-mm-ss sorts lexicographically in chronological order.
-     * No date parsing needed.</p>
+     * No date parsing needed.
      *
-     * <p>MTP duplicate files named "datetime.ndjson (1)" are excluded by
+     * MTP duplicate files named "datetime.ndjson (1)" are excluded by
      * the endsWith(".ndjson") filter - they accumulate harmlessly on the
-     * SD card and are invisible to replay.</p>
+     * SD card and are invisible to replay.
      *
      * @return JSON array string of absolute file paths, or "[]" on failure.
      */
@@ -310,15 +310,15 @@ public class WebAppInterface {
      * Called from index.html replay() and replay72h() for each file
      * in the replay list.
      *
-     * <p>Absolute paths (starting with "/") are read via FileInputStream
+     * Absolute paths (starting with "/") are read via FileInputStream
      * directly.  All paths returned by getFileList() are absolute, so the
      * ContentResolver branch is a fallback that should never fire in
-     * normal operation.</p>
+     * normal operation.
      *
-     * <p>All errors are caught, logged via say(), and return an empty
+     * All errors are caught, logged via say(), and return an empty
      * string.  A failed read silently skips that file in replay rather
      * than crashing.  The say() output makes the failure visible in the
-     * scrollbox.</p>
+     * scrollbox.
      *
      * @param path absolute filesystem path or content URI string.
      * @return file contents as a string, or empty string on failure.

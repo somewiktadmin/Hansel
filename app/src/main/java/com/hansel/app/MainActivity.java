@@ -42,14 +42,14 @@ import java.io.File;
 
 /**
  * Hansel v0.987 main activity.
- * <p>
+ *
  * TODO: Rewrite this Javadoc block once OSMDroid integration and replay are stable.
  *
- * <p>Future: MainActivity and the WebView UI are destined to become a
+ * Future: MainActivity and the WebView UI are destined to become a
  * separate viewer app (Gretel).  The logging core - LocationService and
  * its file I/O - will move to a standalone headless Hansel app.  That
- * split is post-v1.0.</p>
- * <p>
+ * split is post-v1.0.
+ *
  * TODO Consolidate the two MANAGE_ALL_FILES blocks into one, in the right
  * place, and confirm it actually works on the target devices.
  * TODO: Add a "change folder" button or menu item so the user can re-pick
@@ -160,7 +160,7 @@ public class MainActivity extends Activity {
 
     /**
      * "Don't jump when not nearby"
-     * <p>
+     *
      * Returns true if the last 2 replay points are "nearby" the given point -
      * defined as matching truncated lat and lon to 3 decimal places.
      * Used to gate animateTo() so we only follow when the device is holding still.
@@ -206,7 +206,7 @@ public class MainActivity extends Activity {
      * point and starts a fresh segment - map does not follow across
      * the gap.  Enforces MAX_REPLAY_POINTS by removing the oldest
      * segment when exceeded.
-     * <p>
+     *
      * Handles a single replay point from JS.
      * Plots a breadcrumb dot, prunes oldest if over MAX_REPLAY_POINTS,
      * and follows only when last 2 points are nearby (5 decimal truncation).
@@ -395,7 +395,7 @@ public class MainActivity extends Activity {
      * Called by updateGpsInfoOverlay(), updateCenterOverlay(), and
      * the MapListener on scroll/zoom.
      * skyBarBox is updated separately by updateSkyOverlay().
-     * <p>
+     *
      * gpsInfoOverlay layout (zero-based):
      * 0: "Hansel v0.987" left, zoomerLine right-justified with monospace spaces
      * 1: mostCurrentGPS (timestamp first, lat, lon, alt, spd)
@@ -450,28 +450,28 @@ public class MainActivity extends Activity {
 
     /**
      * >>> Hybrid mapView / webView split this version <<<
-     * <p>
+     *
      * currently playing with mapView experiments...older webView narrative is still
      * somewhat relevant (gosh, two days ago?) as I try different things.
-     * <p>
+     *
      * Initializes the activity, requests permissions, builds the WebView, and
      * either prompts for a working directory (first launch) or loads the UI and
      * starts the location service (subsequent launches).
      *
-     * <p>Permission requests fire in this order: MANAGE_APP_ALL_FILES_ACCESS,
+     * Permission requests fire in this order: MANAGE_APP_ALL_FILES_ACCESS,
      * POST_NOTIFICATIONS, ACCESS_FINE_LOCATION.  All three are currently granted
      * manually at install time via Android Studio, so the runtime request blocks
-     * are present but not reliably exercised.</p>
+     * are present but not reliably exercised.
      *
-     * <p>The WebView is configured with JavaScript, DOM storage, and file access
+     * The WebView is configured with JavaScript, DOM storage, and file access
      * enabled.  WebAppInterface is attached as "AndroidBridge", which is the
-     * name index.html uses for all Java callbacks.</p>
+     * name index.html uses for all Java callbacks.
      *
-     * <p>If no working directory URI is stored in HanselPrefs, ACTION_OPEN_DOCUMENT_TREE
+     * If no working directory URI is stored in HanselPrefs, ACTION_OPEN_DOCUMENT_TREE
      * fires and onActivityResult() handles the response.  If a URI is already
      * stored, the UI loads immediately and startLoggingDefault() starts the
-     * service.</p>
-     * <p>
+     * service.
+     *
      * TODO: Runtime permission requests are currently bypassed by manual grant
      * at sideload time.  Before any Google Play submission these blocks
      * must be tested cold - Google Play requires that the app request
@@ -806,16 +806,16 @@ public class MainActivity extends Activity {
      * across reboots via takePersistableUriPermission(), stores the URI string
      * in HanselPrefs, and loads index.html.
      *
-     * <p>Only REQUEST_TREE (1094) is handled here.  The 1094 value is a mnemonic
+     * Only REQUEST_TREE (1094) is handled here.  The 1094 value is a mnemonic
      * for the version milestone where this code solidified: v1.0 meets v0.94.
-     * Lame but memorable.</p>
+     * Lame but memorable.
      *
-     * <p>startLoggingDefault() is intentionally commented out here.  The folder
+     * startLoggingDefault() is intentionally commented out here.  The folder
      * picker fires only on first launch, and at that point index.html has not
      * finished loading yet.  The JS side calls startLogging() once it is ready.
      * On subsequent launches startLoggingDefault() fires from onCreate() instead,
-     * where the timing is safe.</p>
-     * <p>
+     * where the timing is safe.
+     *
      * TODO: Add a "change folder" option before leaving sideload-only stage.
      *
      * @param requestCode the request that triggered this result.
@@ -841,14 +841,14 @@ public class MainActivity extends Activity {
             webView.loadUrl("file:///android_asset/index.html");
 
             /**
-             * <p>startLoggingDefault() is commented out here and must stay that way.
+             * startLoggingDefault() is commented out here and must stay that way.
              * When it was active on this path, the service started twice: once here
              * before index.html had loaded, and again when the JS called startLogging()
              * on page load.  The double-start caused the location listener to register
              * twice, producing duplicate trackpoints and unpredictable rotation behavior.
              * Days of debugging.  The commented line is a tombstone - do not resurrect
              * it without also adding a double-start guards in LocationService
-             *  and index.html.</p>
+             *  and index.html.
              */
             //startLoggingDefault();
 
@@ -863,9 +863,9 @@ public class MainActivity extends Activity {
      * Starts LocationService with the default 30-second interval and 3600-second
      * rollover.  Called from onCreate() on subsequent launches only.
      *
-     * <p>Interval defaults to 30_000ms.  The HanselPrefs key is a fossil from an
-     * earlier interval-selector design.  Value will always be 30_000 in practice.</p>
-     * <p>
+     * Interval defaults to 30_000ms.  The HanselPrefs key is a fossil from an
+     * earlier interval-selector design.  Value will always be 30_000 in practice.
+     *
      * TODO: Remove once BootReceiver is implemented (v0.99).
      */
     private void startLoggingDefault() {

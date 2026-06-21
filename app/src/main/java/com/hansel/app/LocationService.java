@@ -45,34 +45,34 @@ import java.util.Date;
  * Hansel GPS breadcrumb logger - v0.987.
  * File format: NDJSON v0.931.
  *
- * <p>LocationService is the heart of Hansel.  It runs as an Android foreground
+ * LocationService is the heart of Hansel.  It runs as an Android foreground
  * service, receives GPS fixes from FusedLocationProviderClient, filters them
  * through a live deadband, and writes surviving points to an NDJSON log file.
  * It also owns file rotation, monthly rollup, and the two background clocks
- * that drive them.</p>
+ * that drive them.
  *
- * <p>File rotation happens two ways.  The primary path is scheduleTopOfHourRotation(),
+ * File rotation happens two ways.  The primary path is scheduleTopOfHourRotation(),
  * a Handler clock that fires at HH:00:00.001 regardless of GPS fix rate.  The
  * secondary path is the hour key check in handleLocation(), which catches any
  * case where the clock misfired or the service was late to start.  Both paths
  * call rotateFile() and the double-rotation is neutralized by currentHourKey
- * being updated as the very first act of rotateFile().</p>
+ * being updated as the very first act of rotateFile().
  *
- * <p>Prior to the clock-driven rotation, the hourly boundary was detected
+ * Prior to the clock-driven rotation, the hourly boundary was detected
  * entirely by handleLocation().  This worked in the field because
  * FusedLocationProvider was delivering fixes far more frequently than the
  * requested 30-second interval on the target devices.  That happy accident
- * is now replaced by a design that is device and context independent.</p>
+ * is now replaced by a design that is device and context independent.
  *
- * <p>Monthly rollup is handled by consolidateOldFiles(), called at startup
+ * Monthly rollup is handled by consolidateOldFiles(), called at startup
  * and again each day at noon by scheduleNoon().  Hour files older than
  * yesterday are consumed into a monthly canonical file and deleted.  Moving
  * consumed files to a ./backup/ subdirectory instead of deleting them is
- * a pending improvement.</p>
+ * a pending improvement.
  *
- * <p>Future: LocationService and its file I/O are destined to move to a
+ * Future: LocationService and its file I/O are destined to move to a
  * standalone headless app.  The WebView UI will become a separate viewer
- * app (Gretel).  That split is post-v1.0.</p>
+ * app (Gretel).  That split is post-v1.0.
  *
  * TODO: Add BootReceiver so the service survives a phone reboot without
  *       requiring the user to open the app.
@@ -132,10 +132,10 @@ public class LocationService extends Service {
      * This value is also passed to FusedLocationProvider as a hint, but
      * the logging cadence is what actually matters.
      *
-     * <p>This was once a user-selectable setting.  Values below 30_000 cause
+     * This was once a user-selectable setting.  Values below 30_000 cause
      * duplicate timestamps.  Values above 30_000 degrade
      * audio/video sync and file rotation timing.  30 seconds is not a default,
-     * it is the only working value at this stage of the project.</p>
+     * it is the only working value at this stage of the project.
      *
      * TODO: Remove the last_interval SharedPreference read in
      *       startLoggingDefault() - it will always be 30_000 and pretending
@@ -240,15 +240,15 @@ public class LocationService extends Service {
      * a fresh hourRotationRunnable lambda each call so that hourHandler can
      * cancel it cleanly in onDestroy().
      *
-     * <p>The lambda calls rotateFile() with the current hour key at fire
+     * The lambda calls rotateFile() with the current hour key at fire
      * time, then reschedules itself for the following hour.  The +1ms offset
      * targets just past the hour boundary - close enough for audio/video sync
      * purposes, far enough to be reliably after rather than accidentally
-     * before due to scheduler jitter.</p>
+     * before due to scheduler jitter.
      *
-     * <p>Called from rotateFile() after a new file is successfully opened.
+     * Called from rotateFile() after a new file is successfully opened.
      * Not called from rotateNow() - manual rotations do not disturb the
-     * clock chain.</p>
+     * clock chain.
      */
     private void scheduleTopOfHourRotation() {
         long now = System.currentTimeMillis();
@@ -360,12 +360,12 @@ public class LocationService extends Service {
      * Updates the GPS fix request interval.  Enforces INTERVAL_FLOOR_MS
      * to prevent timestamp collisions and phone overheating.
      *
-     * <p>The body of this method is guarded by if(false) and does not
+     * The body of this method is guarded by if(false) and does not
      * execute.  Re-registering the location listener on every interval
      * change caused a double-listener bug.  The guard is the fix.  The
      * UI element that called this has been removed.  The method and its
      * floor logic are retained as a reference for when interval adjustment
-     * is revisited post-v1.0.</p>
+     * is revisited post-v1.0.
      *
      * TODO: Revisit as part of the Gretel/headless-Hansel split.  A proper
      *       interval change will require stopping and restarting the listener
@@ -431,11 +431,11 @@ public class LocationService extends Service {
      * DocumentFile handle to the working directory.  Returns null and
      * toasts a message if no folder has been selected yet.
      *
-     * <p>Called by openFile(), rotateFile(), and consolidateOldFiles()
+     * Called by openFile(), rotateFile(), and consolidateOldFiles()
      * every time they need the directory.  There is no cached handle -
      * each call goes back to SharedPreferences.  This is intentional:
      * the URI is stable once set and the overhead is negligible compared
-     * to the file I/O that follows.</p>
+     * to the file I/O that follows.
      */
     private DocumentFile getTreeDir() {
         SharedPreferences prefs = getSharedPreferences(
@@ -458,10 +458,10 @@ public class LocationService extends Service {
      * the log file sees only what survives the filter.  The JS side reformats
      * the raw JSON considerably before displaying it to the user.
      *
-     * <p>The call is posted to the main looper because evaluateJavascript()
+     * The call is posted to the main looper because evaluateJavascript()
      * must run on the UI thread.  LocationService callbacks arrive on the
      * main looper already, but the post() is kept as an explicit guarantee
-     * rather than an assumption.</p>
+     * rather than an assumption.
      */
     void sendToUI(String json) {
         if (MainActivity.webView == null) return;
@@ -499,16 +499,16 @@ public class LocationService extends Service {
      * time.  Anything of urgence has already been [REPLAY]ed with the
      * button [72hr], now we want to diminish lag time aggressively.
      *
-     * <p>Implemented as a static method taking explicit window state arrays
+     * Implemented as a static method taking explicit window state arrays
      * so that each source file gets its own independent filter state without
      * allocating a new object.  The arrays are allocated by the caller in
-     * consolidateOldFiles() and reset between files.</p>
+     * consolidateOldFiles() and reset between files.
      *
-     * <p>Notes hold the highest status in the file format - they are always
+     * Notes hold the highest status in the file format - they are always
      * written unconditionally and always reset the deadband state on both
      * sides of them.  consolidateOldFiles() handles notes directly before
      * ever calling this method, so consolidateSuppress() only ever sees
-     * plain trackpoints.</p>
+     * plain trackpoints.
      *
      * @param altFt  altitude in feet.
      * @param window sliding window of recent altitude readings.
@@ -537,20 +537,20 @@ public class LocationService extends Service {
      * Consolidates old hour files into monthly canonical files.  Runs at
      * service startup and again each day at noon via scheduleNoon().
      *
-     * <p>Files are skipped if they are from today, yesterday, or the day
+     * Files are skipped if they are from today, yesterday, or the day
      * before yesterday (72 hour live window to support the 72h replay
      * button), are already a monthly canonical file (name contains
      * "-00_00-00-00"), or are not .ndjson files.  MTP duplicate files
      * named "datetime.ndjson (1)" are accepted alongside their originals
-     * and rolled in normally.</p>
+     * and rolled in normally.
      *
-     * <p>For each eligible file, the target monthly file is named
+     * For each eligible file, the target monthly file is named
      * yyyy-MM-00_00-00-00.ndjson.  The 00 day field is not a bug - it is
      * a deliberate exploitation of an impossible calendar value to mark
      * canonical monthly rollups.  It does not represent one day of
-     * a given month, rather, it represents the WHOLE month.</p>
+     * a given month, rather, it represents the WHOLE month.
      *
-     * <p>The loop makes no attempt to detect or handle month boundaries.
+     * The loop makes no attempt to detect or handle month boundaries.
      * Each file's target monthly is derived purely from its own filename
      * prefix - a file named 2026-04-30_23-xx-xx.ndjson goes into
      * 2026-04-00_00-00-00.ndjson and a file named 2026-05-01_00-xx-xx.ndjson
@@ -560,23 +560,23 @@ public class LocationService extends Service {
      * problem.  Twice as much code to handle exotic one-off conditions,
      * when I can rename my file from June 1st to be May 32nd and all works
      * just peachy.  Since this is programming practice for me and no
-     * one else will EVER see this code, thwwwwwwpppt.</p>
+     * one else will EVER see this code, thwwwwwwpppt.
      *
-     * <p>Each source file gets its own fresh consolidation deadband state.
+     * Each source file gets its own fresh consolidation deadband state.
      * Notes are written unconditionally and reset the deadband.  The monthly
      * file gets a fresh header only if it is newly created - appending to an
-     * existing monthly does not add a second header.</p>
+     * existing monthly does not add a second header.
      *
-     * <p>After successful consolidation the source hour file is deleted.
+     * After successful consolidation the source hour file is deleted.
      * Moving consumed files to a ./backup/ subdirectory instead of deleting
-     * them is a pending improvement.</p>
+     * them is a pending improvement.
      *
-     * <p>Sorting and exact-line deduplication are not currently performed
+     * Sorting and exact-line deduplication are not currently performed
      * during consolidation.  Originally this was intentional - data from
      * four phones was being combined and legitimate identical records from
      * separate devices were not to be removed.  That constraint no longer
      * applies.  The one-record-per-line NDJSON format makes this a natural
-     * sort-and-uniq operation on the raw lines.</p>
+     * sort-and-uniq operation on the raw lines.
      *
      * TODO: Sort lines and remove exact duplicate lines during consolidation.
      *       Standard sort-and-uniq semantics on the raw NDJSON lines.
@@ -725,18 +725,18 @@ public class LocationService extends Service {
      * onStartCommand() to start the chain, then self-rescheduling via
      * noonRunnable.
      *
-     * <p>Noon was chosen because yesterday's files are guaranteed cold by
+     * Noon was chosen because yesterday's files are guaranteed cold by
      * then - no risk of consolidating a file that is still being written.
      * Startup consolidation is the safety net for files that accumulated
      * while the service was not running.  The two together mean no hour
-     * file should ever sit unconsolidated for more than 36 hours.</p>
+     * file should ever sit unconsolidated for more than 36 hours.
      *
-     * <p>The noonRunnable lambda is reassigned on every call so that
+     * The noonRunnable lambda is reassigned on every call so that
      * noonHandler.removeCallbacks() in onDestroy() always holds the
      * current instance.  The same pattern is used by
-     * scheduleTopOfHourRotation().</p>
+     * scheduleTopOfHourRotation().
      *
-     * <p>Noon HST is not arbitrary.  USGS ASHCAM imagery at
+     * Noon HST is not arbitrary.  USGS ASHCAM imagery at
      * ashcam.volcanoes.usgs.gov is timestamped in UTC.  Hawaii is UTC-10,
      * so a UTC calendar day runs from 2pm HST to 2pm HST.  Timelapse
      * composites built against UTC dates therefore bracket the nighttime
@@ -745,7 +745,7 @@ public class LocationService extends Service {
      * from Volcano House at 2.6 miles.  Noon consolidation guarantees all
      * Hansel files are clean and current before the 2pm UTC day boundary
      * rolls over, so there is no risk of a composite straddling a
-     * partially-consolidated month file.</p>
+     * partially-consolidated month file.
      *
      * TODO: If the service is started after noon and before midnight,
      *       the first scheduled noon will be tomorrow.  Files from today
@@ -779,26 +779,26 @@ public class LocationService extends Service {
      * Opens a new NDJSON log file in the working directory and writes the
      * file header.  Called from onStartCommand() only.
      *
-     * <p>The header is written immediately on file open, before any GPS
+     * The header is written immediately on file open, before any GPS
      * data arrives.  A file containing only a header line is valid and
      * intentional - it will occur whenever the deadband suppresses all
      * points in a given hour.  The Python pipeline accepts header-only
-     * files without complaint.</p>
+     * files without complaint.
      *
-     * <p>The isFileOpen guard at the top is the primary defense against
+     * The isFileOpen guard at the top is the primary defense against
      * double-open.  This guard, and the decision to NOT call openFile()
      * from onActivityResult() in MainActivity, were the result of days of
      * debugging double service starts, duplicate trackpoints, and
      * quintuple callbacks.  The commented-out Toast and say() calls below
-     * are diagnostic survivors from that era.</p>
+     * are diagnostic survivors from that era.
      *
-     * <p>currentHourKey is set after a successful open, not at the top.
+     * currentHourKey is set after a successful open, not at the top.
      * A failed open leaves currentHourKey unchanged, which causes
      * handleLocation() to retry rotateFile() on the next GPS fix rather
-     * than silently writing to a null writer.</p>
+     * than silently writing to a null writer.
      *
-     * <p>Files are named from actual wallclock time at the moment of
-     * opening, never from a pre-computed hour key.</p>
+     * Files are named from actual wallclock time at the moment of
+     * opening, never from a pre-computed hour key.
      */
     void openFile() {
         //say("openFile called from: " + Thread.currentThread().toString());
@@ -864,20 +864,20 @@ public class LocationService extends Service {
      * handleLocation() when the hour key changes, and from
      * scheduleTopOfHourRotation() on the clock-driven path.
      *
-     * <p>The very first act is to update currentHourKey.  This is the
+     * The very first act is to update currentHourKey.  This is the
      * double-rotation guard - if handleLocation() and the hour clock
      * both fire within milliseconds of each other, the second caller
-     * sees a matching hour key and takes no action.</p>
+     * sees a matching hour key and takes no action.
      *
-     * <p>isFileOpen is set false before the old file is closed.  This
+     * isFileOpen is set false before the old file is closed.  This
      * asymmetry with openFile() is intentional - false before close
      * means a racing openFile() call will proceed rather than skip,
-     * which is the safe failure mode.</p>
+     * which is the safe failure mode.
      *
-     * <p>The new file is named from actual wallclock time, never from
+     * The new file is named from actual wallclock time, never from
      * the hourKey parameter.  The hourKey parameter exists only to
      * update currentHourKey and trigger the rotation decision in
-     * handleLocation() - it does not determine the filename.</p>
+     * handleLocation() - it does not determine the filename.
      *
      * @param hourKey the new hour key formatted yyyy-MM-dd_HH.
      */
@@ -1000,26 +1000,26 @@ public class LocationService extends Service {
      * Writes a mark (note) to the current log file.  Called from the UI
      * via the AndroidBridge JavaScript interface.
      *
-     * <p>A mark is a trackpoint with a "note" field added.  The JSON is
+     * A mark is a trackpoint with a "note" field added.  The JSON is
      * constructed entirely on the JS side and passed in as a string.
      * This method writes it verbatim - no reformatting, no deadband, no
-     * questions asked.</p>
+     * questions asked.
      *
-     * <p>deadbandReset() is called first, unconditionally.  A mark
+     * deadbandReset() is called first, unconditionally.  A mark
      * represents a moment of intentional human attention.  Whatever the
      * GPS was doing before it is no longer relevant - the filter starts
-     * fresh from here.</p>
+     * fresh from here.
      *
-     * <p>The "MARK HIT SERVICE" say() call is a diagnostic survivor from
+     * The "MARK HIT SERVICE" say() call is a diagnostic survivor from
      * early development when it was not obvious whether marks were making
      * it through the JS/Java bridge at all.  Retained because it is
-     * occasionally still useful in the field.</p>
+     * occasionally still useful in the field.
      *
-     * <p>mark() serves triple duty.  It handles free-text notes typed by
+     * mark() serves triple duty.  It handles free-text notes typed by
      * the user, sound event markers, and the one-tap panic button (M) for
      * when typing is not an option.  The JSON structure distinguishes them
      * but this method does not care - it writes whatever arrives and resets
-     * the deadband regardless.</p>
+     * the deadband regardless.
      *
      * @param json the complete mark JSON string, constructed by the JS side.
      */
@@ -1050,15 +1050,15 @@ public class LocationService extends Service {
      * finer than any consumer GPS can actually deliver but is the
      * established convention for this file format.
      *
-     * <p>The method rounds to 6 places, then checks the decimal portion
+     * The method rounds to 6 places, then checks the decimal portion
      * of the string representation.  If the string has fewer than 6
      * decimal places (e.g. the value rounded to an exact multiple of
      * 0.00001), it nudges the value up by 0.000001 and rounds again.
      * This guarantees the string representation always has exactly 6
-     * decimal places, which simplifies downstream parsing.</p>
+     * decimal places, which simplifies downstream parsing.
      *
-     * <p>The nudge is upward, never downward, and is smaller than the
-     * noise floor of any GPS receiver.  It does not affect data quality.</p>
+     * The nudge is upward, never downward, and is smaller than the
+     * noise floor of any GPS receiver.  It does not affect data quality.
      *
      * If you think you are safe to modify this Method, for any reason
      * under the sun, please reschedule your lobotomy first.
@@ -1080,16 +1080,16 @@ public class LocationService extends Service {
      * Flushes and closes the current log file.  Called from rotateNow()
      * before opening the next file.
      *
-     * <p>Despite the name, this method no longer stops logging.  It closes
+     * Despite the name, this method no longer stops logging.  It closes
      * the current file and reports what was saved via say() and a Toast.
      * rotateNow() immediately calls openFile() after this, so logging
      * continues uninterrupted.  The only way to actually stop logging is
-     * to force-close the app.</p>
+     * to force-close the app.
      *
-     * <p>The Toast here is one of the few surviving Toasts in the codebase.
+     * The Toast here is one of the few surviving Toasts in the codebase.
      * It provides tactile confirmation that a manual rotation completed,
      * which matters when you are standing on a lava field and cannot
-     * easily read the screen.</p>
+     * easily read the screen.
      *
      * TODO: Remove the Toast - say() is sufficient and consistent with the
      *       rest of the codebase.  The Toast was a debugging remnant from
@@ -1129,22 +1129,22 @@ public class LocationService extends Service {
      * Registers the FusedLocationProvider callback and begins receiving
      * GPS fixes.  Called once from onStartCommand().
      *
-     * <p>The LocationCallback is constructed here rather than at field
+     * The LocationCallback is constructed here rather than at field
      * declaration so that it closes over the current service instance.
      * Each fix delivered to onLocationResult() is passed to
      * handleLocation() - see that method for the full story on why
-     * this callback is not to be trifled with.</p>
+     * this callback is not to be trifled with.
      *
-     * <p>The interval passed to LocationRequest is a hint, not a
+     * The interval passed to LocationRequest is a hint, not a
      * guarantee.  FusedLocationProvider may deliver fixes more frequently,
      * which on the target devices it does.  This accidental generosity
      * was previously the only thing keeping hourly rotation accurate.
-     * It is now just a bonus.</p>
+     * It is now just a bonus.
      *
-     * <p>If ACCESS_FINE_LOCATION is not granted, the method bails with a
+     * If ACCESS_FINE_LOCATION is not granted, the method bails with a
      * say() and a Toast.  In practice this should never happen since the
      * permission is granted manually at sideload time, but the check is
-     * required by the Android API regardless.</p>
+     * required by the Android API regardless.
      *
      * TODO: When BootReceiver is implemented, confirm that startGPS() is
      *       not called before the permission check in MainActivity has
@@ -1203,21 +1203,21 @@ public class LocationService extends Service {
      * logging interval from the Intent, runs startup consolidation, starts
      * both background clocks, opens the log file, and starts GPS.
      *
-     * <p>The foreground notification is required on SDK 26+ for any service
+     * The foreground notification is required on SDK 26+ for any service
      * that continues running while the app is in the background.  On SDK 29+
      * the FOREGROUND_SERVICE_TYPE_LOCATION flag is required in addition,
      * or the system will not deliver location updates.  Both are handled
-     * here with a version check.</p>
+     * here with a version check.
      *
-     * <p>If the service is already running and receives a second start
+     * If the service is already running and receives a second start
      * Intent, onStartCommand() fires again.  The isFileOpen guard in
      * openFile() prevents a double file open.  The startId diagnostic
-     * say() call makes a repeated start visible in the message box.</p>
+     * say() call makes a repeated start visible in the message box.
      *
-     * <p>START_STICKY tells Android to restart the service automatically
+     * START_STICKY tells Android to restart the service automatically
      * if it is killed by the system.  The Intent will be null on restart,
      * which is handled by the null check on intent.getIntExtra()
-     * defaulting to 30_000.</p>
+     * defaulting to 30_000.
      *
      * @param intent  the starting Intent, or null if restarted by the system.
      * @param flags   delivery flags, not used.
@@ -1253,12 +1253,12 @@ public class LocationService extends Service {
      * Cleans up on service destruction.  Cancels both background clock
      * chains, removes the GPS listener, and closes the log file.
      *
-     * <p>Both noonRunnable and hourRotationRunnable are cancelled here.
+     * Both noonRunnable and hourRotationRunnable are cancelled here.
      * Failing to cancel hourRotationRunnable would cause rotateNow() to
      * fire on a destroyed service, calling openFile() with no valid
      * context.  The null checks are technically redundant since both
      * Handlers are initialized at field declaration, but are consistent
-     * with the noonHandler pattern and harmless.</p>
+     * with the noonHandler pattern and harmless.
      */
     @Override
     public void onDestroy() {

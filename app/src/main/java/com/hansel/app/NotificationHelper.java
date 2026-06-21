@@ -16,18 +16,18 @@ import androidx.core.app.NotificationCompat;
 /**
  * Hansel GPS breadcrumb logger - v0.987.
  *
- * <p>Builds the foreground service notification required by Android SDK 26+
+ * Builds the foreground service notification required by Android SDK 26+
  * for any service that runs while the app is in the background.  On SDK 26+
  * a NotificationChannel must be created before the notification can be
  * posted - createNotificationChannel() is idempotent so it is safe to call
- * on every service start.</p>
+ * on every service start.
  *
- * <p>IMPORTANCE_LOW suppresses the notification sound.  The user does not
+ * IMPORTANCE_LOW suppresses the notification sound.  The user does not
  * need to be alerted every time the logger starts - they just need the
- * persistent icon confirming it is running.</p>
+ * persistent icon confirming it is running.
  *
- * <p>The small icon uses the system built-in ic_menu_mylocation.  A custom
- * Hansel icon is a post-v1.0 cosmetic item.</p>
+ * The small icon uses the system built-in ic_menu_mylocation.  A custom
+ * Hansel icon is a post-v1.0 cosmetic item.
  *
  * TODO: Replace ic_menu_mylocation with a custom Hansel app icon.
  */
