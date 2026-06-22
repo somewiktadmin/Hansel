@@ -516,20 +516,19 @@ public class MainActivity extends Activity {
             }
         }
 
+        // OSMDroid init - NOTE: This MUST be before the first mapView reference
+        initOsmdroid();
+        Configuration.getInstance()
+                .setUserAgentValue(
+                        "Hansel/0.987 personal field logger - single user, multiple test devices, Kilauea HI");
+        say( Configuration.getInstance().getOsmdroidBasePath().getAbsolutePath() );
+        say( Configuration.getInstance().getOsmdroidTileCache().getAbsolutePath() );
+
+
         setContentView(R.layout.activity_main);
         webView = findViewById(R.id.webView);
         mapView = findViewById(R.id.mapView);
 
-        // OSMDroid init
-        initOsmdroid();
-        Configuration.getInstance()
-                .setUserAgentValue(
-                        "Hansel/0.987 personal field logger - single user, Kilauea HI");
-        //cache for OSMDroid is not allowed to live on sdcard, so try this
-        Configuration.getInstance()
-                .setOsmdroidBasePath(getFilesDir());
-        Configuration.getInstance()
-                .setOsmdroidTileCache(new File(getFilesDir(), "tiles"));
         mapView.setTileSource(
                 TileSourceFactory.MAPNIK);
         mapView.setBuiltInZoomControls(false);
@@ -720,7 +719,6 @@ public class MainActivity extends Activity {
         });
 
 
-
         /*
         compassOverlay = new CompassOverlay(
                 this, new InternalCompassOrientationProvider(this), mapView);
@@ -769,9 +767,6 @@ public class MainActivity extends Activity {
             webView.loadUrl("file:///android_asset/index.html");
             startLoggingDefault();
         }
-
-        initOsmdroid();
-
     }
 
     @Override
@@ -787,11 +782,11 @@ public class MainActivity extends Activity {
     }
 
     private void initOsmdroid() {
-        Log.d("Hansel", "initOsmDroid() firing");
+        say("initOsmDroid() firing" );
         java.io.File cacheDir = new java.io.File(getExternalFilesDir(null), "tiles");
-        Log.d("Hansel", "tile cache path: " + cacheDir.getAbsolutePath()
+        say("tile cache path: " + cacheDir.getAbsolutePath()
                 + " exists=" + cacheDir.exists()
-                + " writable=" + cacheDir.canWrite());
+                + " writable=" + cacheDir.canWrite() );
         org.osmdroid.config.Configuration.getInstance()
                 .setOsmdroidBasePath(getExternalFilesDir(null));
         org.osmdroid.config.Configuration.getInstance()
