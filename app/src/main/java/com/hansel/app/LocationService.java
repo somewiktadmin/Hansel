@@ -153,8 +153,6 @@ public class LocationService extends Service {
     /**
      * Live deadband filter window size.  N=20 was overkill, N=5 overreacts,
      * N=10 was field-tuned on the Big Island as the best balance.
-     * TODO: Future: std deviation spike filter for Saddle Road cell-mode
-     *       altitude thrashing.
      */
     private static final int DEADBAND_N = 10;
 
@@ -481,6 +479,7 @@ public class LocationService extends Service {
      */
     public static void say(String something, String module) {
         String tag = "Hansel." + module;
+        tag = tag.endsWith(".") ? tag.substring(0, tag.length() - 1) : tag;
         Log.d(tag, something);
         String displayMsg = module + something;
 
@@ -580,15 +579,15 @@ public class LocationService extends Service {
      *
      * TODO: Sort lines and remove exact duplicate lines during consolidation.
      *       Standard sort-and-uniq semantics on the raw NDJSON lines.
-     * TODO: Move consumed files to ./backup/ instead of deleting them.
+     * TODO: Delete consumed files instead of renaming them to .backup...
      * TODO: Version existing monthly files before overwriting.  Backup slots
      *       are yyyy-MM-00_00-00-61.ndjson through yyyy-MM-00_00-00-99.ndjson.
      *       The seconds field 61-99 is deliberately outside the valid 00-59
      *       range so that any datetime parser will reject these as data files
      *       rather than silently misreading them as trackpoints.
-     * TODO: Convert from SAF (DocumentFile) to direct File access, consistent
+     * TODO: Convert to SAF (DocumentFile) from direct File access, consistent
      *       with the rest of the file I/O in this class.
-     *
+     * TODO: Remove MANAGE_ALL_FILES to make this deployable on deplorable playstore.
      * TODO: Convert from SAF (DocumentFile) to direct File access.  SAF was
      *       used here because it was the available pattern at the time this
      *       method was written.  The rest of the file I/O in this class uses
@@ -597,11 +596,13 @@ public class LocationService extends Service {
      *       only sees the top level of the tree URI.  The ./backup/ move
      *       implementation is blocked until this conversion is done.
      */
-    void consolidateOldFiles() {
+    public void consolidateOldFiles() {
         DocumentFile dir = getTreeDir();
         if (dir == null) return;
+        say("consolidateOldFiles dir=" + dir.getUri().getPath() );
 
         DocumentFile[] files = dir.listFiles();
+        say( "consolidateOldFiles.files= " + Integer.toString(files.length) );
         if (files == null || files.length == 0) return;
 
         String today = new SimpleDateFormat("yyyy-MM-dd").format(new Date());

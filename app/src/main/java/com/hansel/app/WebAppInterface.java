@@ -86,6 +86,7 @@ public class WebAppInterface {
     @JavascriptInterface
     public void consolidateNow() {
         if (LocationService.instance != null) {
+            say("consolidateNow" );
             LocationService.instance.consolidateOldFiles();
         }
     }
@@ -164,6 +165,10 @@ public class WebAppInterface {
             //        MainActivity.locationService.toString() );
             return;
         }
+
+        SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        interval = prefs.getInt("last_interval", interval );
+
         Intent i = new Intent(context, LocationService.class);
         i.putExtra("interval", interval);
         i.putExtra("rollover", rollover);

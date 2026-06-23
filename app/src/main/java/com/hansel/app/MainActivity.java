@@ -71,7 +71,7 @@ public class MainActivity extends Activity {
     // breadcrumb dot color - toasted white bread gold
     private static final int REPLAY_DOT_COLOR = 0xFFD4A017;
     // TODO: make this a SharedPreferences user setting, range 100-60000
-    private static final int MAX_REPLAY_POINTS = 2500;
+    private static final int MAX_REPLAY_POINTS = 4000;
     // tracks all breadcrumb dot markers for pruning and clearing
     private static final java.util.List<org.osmdroid.views.overlay.Marker>
             replayDots = new java.util.ArrayList<>();
@@ -79,34 +79,31 @@ public class MainActivity extends Activity {
     public static org.osmdroid.views.MapView mapView;
 
     //private CompassOverlay compassOverlay;
-    public static MainActivity ma;
     public static TextView replayPausedFloatie;
     public static MyLocationNewOverlay locationOverlay;
     public static TextView gpsInfoOverlay;
     public static TextView skyBarBox;
-    /**
-     * Cached center overlay data - updated on pan/zoom/replay.
-     */
+
+    /** Cached center overlay data - updated on pan/zoom/replay.*/
     public static double zoomerLat = 0;
     public static double zoomerLon = 0;
     public static double zoomerAlt = 0;
     public static int zoomerZoom = 0;
+
+    /** Buttons on right column */
     public static Button btnMe;
     public static Button btnHMM;
     public static Button btnZoomIn;
     public static Button btnZoomOut;
-    /**
-     * Cached status overlay data - updated 1Hz from handleLocation().
-     */
+
+    /** Cached status overlay data - updated 1Hz from handleLocation(). */
     public static String statusLine1 = "";
-    /**
-     * Usable line count in gpsInfoOverlay - measured after layout.
-     */
+
+    /** Usable line count in gpsInfoOverlay - measured after layout. */
     public static int overlayLines = 21;
-    /**
-     * Usable character width of gpsInfoOverlay - measured after layout.
-     */
-    public static int overlayChars = 40;
+
+    /** Usable character width of gpsInfoOverlay - measured after layout. */
+    public static int overlayChars = 48;
     public static boolean replayFollowMode = true;
     public static boolean updatingMap = false;
     public static boolean replayInProgress = false;
@@ -116,10 +113,8 @@ public class MainActivity extends Activity {
     public static boolean programmingScroll = false; //for animateTo() scrolling
     private static android.graphics.drawable.Drawable replayDotDrawable = null;
 
-    /**
-     * say() convenience debug method because LOGCAT fails most
-     * of the time on Android Studio Bumblebee.
-     */
+    /** say() convenience debug method because LOGCAT fails most
+     *  of the time on Android Studio Bumblebee. */
     public void say(String something) { LocationService.say(something, "mainAct."); }
 
     /**
@@ -163,7 +158,9 @@ public class MainActivity extends Activity {
      *
      * Returns true if the last 2 replay points are "nearby" the given point -
      * defined as matching truncated lat and lon to 3 decimal places.
-     * Used to gate animateTo() so we only follow when the device is holding still.
+     * Used to gate animateTo() so we only follow when the device is on the
+     * same side of the island (sorted inputs from multiple phones can
+     * report from distant locations.)
      */
     private static boolean replayIsNearby(GeoPoint pt) {
         if (replayDots.size() < 2) return false;
@@ -178,6 +175,11 @@ public class MainActivity extends Activity {
         return true;
     }
 
+    /** truncate lat,lon values to three decimal places without rounding */
+    private static String truncate3(double v) {
+        long shifted = (long) (v * 1000);
+        return Long.toString(shifted);
+    }
 
     /*
      * Syncs the zoom slider thumb to the current map zoom level.
@@ -193,11 +195,6 @@ public class MainActivity extends Activity {
     }
      */
 
-    private static String truncate3(double v) {
-        // truncate to 3 decimal places without rounding
-        long shifted = (long) (v * 1000);
-        return Long.toString(shifted);
-    }
 
     /**
      * Called from WebAppInterface.replayPoint() on each replay step.
@@ -260,7 +257,7 @@ public class MainActivity extends Activity {
                 Log.e("Hansel",
                         "replayPoint error: " + e.getMessage());
             }
-        }); //evil post()
+        }); //post to main UI thread, because this originates from javascript
     }
 
     /**
@@ -410,8 +407,8 @@ public class MainActivity extends Activity {
         String zoomer = String.format(java.util.Locale.US,
                 "%.6f %.6f %s Z:%d",
                 zoomerLat, zoomerLon, altStr, zoomerZoom);
-        String label = "Hansel v0.987";
-        // pad between label and zoomer to fill overlayChars
+        String label = "Hansel v0.987       ";
+        // TODO: pad between label and zoomer to fill overlayChars
         int spaces = Math.max(1, overlayChars - label.length() - zoomer.length());
         StringBuilder pad = new StringBuilder();
         for (int i = 0; i < spaces; i++) pad.append(' ');
@@ -485,8 +482,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        ma = this;
-        say("onCreate firing");
+        say("onCreate starting");
 
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
@@ -524,6 +520,8 @@ public class MainActivity extends Activity {
         say( Configuration.getInstance().getOsmdroidBasePath().getAbsolutePath() );
         say( Configuration.getInstance().getOsmdroidTileCache().getAbsolutePath() );
 
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        int interval = prefs.getInt("last_interval", 5000); //30_000 30000
 
         setContentView(R.layout.activity_main);
         webView = findViewById(R.id.webView);
@@ -561,24 +559,24 @@ public class MainActivity extends Activity {
         replayPausedFloatie.setTypeface(courierPrime);
         skyBarBox.setTypeface(courierPrime);
 
-        say("FONT" + gpsInfoOverlay.getTypeface().toString());
-        //gpsInfoOverlay.post(() -> {
-        if (gpsInfoOverlay.getLineHeight() > 0) {
-            overlayLines = gpsInfoOverlay.getHeight() / gpsInfoOverlay.getLineHeight();
-        }
-        if (gpsInfoOverlay.getPaint() != null && gpsInfoOverlay.getWidth() > 0) {
-            float charW = gpsInfoOverlay.getPaint().measureText("M");
-            float charsW = gpsInfoOverlay.getPaint().measureText("I");
-            if (charsW != charW) {
-                say("Monospace font has been microsofted");
-            } else {
-                say("charsW " + charsW + " is good");
+        say("screen FONT " + gpsInfoOverlay.getTypeface().toString());
+        gpsInfoOverlay.post(() -> {
+            if (gpsInfoOverlay.getLineHeight() > 0) {
+                overlayLines = gpsInfoOverlay.getHeight() / gpsInfoOverlay.getLineHeight();
             }
+            if (gpsInfoOverlay.getPaint() != null && gpsInfoOverlay.getWidth() > 0) {
+                float charW = gpsInfoOverlay.getPaint().measureText("M");
+                float charsW = gpsInfoOverlay.getPaint().measureText("I");
+                if (charsW != charW) {
+                    say("Monospace font has been microsofted");
+                } else {
+                    say("charsW " + charsW + " is good");
+                }
 
-            if (charW > 0) overlayChars = (int) (gpsInfoOverlay.getWidth() / charW);
-        }
-
-        //});
+                if (charW > 0) overlayChars = (int) (gpsInfoOverlay.getWidth() / charW);
+                say("overlayChars screen width chars: " + overlayChars );
+            }
+        });
 
         btnMe = findViewById(R.id.btnMe);
         btnHMM = findViewById(R.id.btnHMM);
@@ -689,7 +687,7 @@ public class MainActivity extends Activity {
                 zoomerZoom = (int) Math.round(mapView.getZoomLevelDouble());
                 zoomerLat = gs.getLatitude();
                 zoomerLon = gs.getLongitude();
-                zoomerAlt = 0; //TODO get nearest 3 decimal lat,lon altitude or 4 decimal? From my collected data
+                //zoomerAlt = 0; //TODO get nearest 3 decimal lat,lon altitude or 4 decimal? From my collected data
                 rebuildGpsInfoOverlay();
                 return false;
             }
@@ -711,7 +709,7 @@ public class MainActivity extends Activity {
                 zoomerZoom = (int) Math.round(mapView.getZoomLevelDouble());
                 zoomerLat  = gs.getLatitude();
                 zoomerLon  = gs.getLongitude();
-                zoomerAlt  = 0;
+                //zoomerAlt  = 0;
                 rebuildGpsInfoOverlay();
                 return false;
                 */
@@ -743,6 +741,7 @@ public class MainActivity extends Activity {
         ws.setAllowContentAccess(true);
         webView.addJavascriptInterface(new WebAppInterface(this), "AndroidBridge");
 
+        // TODO REMOVE THIS
         // TODO: confirm MANAGE_ALL_FILES request fires correctly on target
         // devices.  Currently all permissions granted manually at sideload.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -755,7 +754,7 @@ public class MainActivity extends Activity {
             }
         }
 
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        //prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         String savedUri = prefs.getString(PREF_TREE_URI, null);
 
         if (savedUri == null) {
@@ -765,7 +764,7 @@ public class MainActivity extends Activity {
         } else {
             // already have a folder, go straight to UI
             webView.loadUrl("file:///android_asset/index.html");
-            startLoggingDefault();
+            //startLoggingDefault();
         }
     }
 
@@ -783,7 +782,8 @@ public class MainActivity extends Activity {
 
     private void initOsmdroid() {
         say("initOsmDroid() firing" );
-        java.io.File cacheDir = new java.io.File(getExternalFilesDir(null), "tiles");
+        // TODO wth, this was supposed to be REQUEST_TILE and that was supposed to have a better name
+        File cacheDir = new File(getExternalFilesDir(null), "tiles");
         say("tile cache path: " + cacheDir.getAbsolutePath()
                 + " exists=" + cacheDir.exists()
                 + " writable=" + cacheDir.canWrite() );
@@ -842,7 +842,7 @@ public class MainActivity extends Activity {
              * on page load.  The double-start caused the location listener to register
              * twice, producing duplicate trackpoints and unpredictable rotation behavior.
              * Days of debugging.  The commented line is a tombstone - do not resurrect
-             * it without also adding a double-start guards in LocationService
+             * it without also adding a double-start guard in LocationService
              *  and index.html.
              */
             //startLoggingDefault();
