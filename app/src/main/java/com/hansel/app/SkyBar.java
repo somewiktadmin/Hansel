@@ -300,7 +300,7 @@ public class SkyBar {
      *
      * /**\
      *
-     * The stars remain visible.
+     * The asterixes remain visible.
      *
      * The ramps provide additional preparation and wrap-up guidance.
      *
@@ -343,8 +343,6 @@ public class SkyBar {
      *
      * Do not turn it into an observatory.
      */
-
-
     private static void recalcDailyIfNeeded(String t, double lat, double lon) {
         String date = t.substring(0, 10); // "yyyy-MM-dd"
         if (date.equals(lastCalcDate)) return;
@@ -834,7 +832,7 @@ public class SkyBar {
         int dayOfYear = dayOfYear(y, mo, d);
 
         double phase = calcMoonPhase(date);
-        double dayPhase = (phase - 22 + 29) % 29;
+        double dayPhase = (phase - 20 + 29) % 29;
         //say("calcSkyBar phase: " + phase + " dayPhase: " + dayPhase);
 
         double[] rs = sunriseSunsetMinutes(SKY_LAT, dayOfYear);

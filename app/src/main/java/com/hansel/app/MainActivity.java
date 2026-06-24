@@ -407,9 +407,9 @@ public class MainActivity extends Activity {
         String zoomer = String.format(java.util.Locale.US,
                 "%.6f %.6f %s Z:%d",
                 zoomerLat, zoomerLon, altStr, zoomerZoom);
-        String label = "Hansel v0.987       ";
+        String label = "Hansel v0.987     ";
         // TODO: pad between label and zoomer to fill overlayChars
-        int spaces = Math.max(1, overlayChars - label.length() - zoomer.length());
+        int spaces = Math.max( 1, overlayChars - label.length() - zoomer.length() - 1 );
         StringBuilder pad = new StringBuilder();
         for (int i = 0; i < spaces; i++) pad.append(' ');
         String line0 = label + pad + zoomer;
