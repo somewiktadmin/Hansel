@@ -985,6 +985,12 @@ public class LocationService extends Service {
 
             lastLocation = loc;
 
+            //Fsck deadband - if I am stopped, slow way down, if moving speed up.  Duh.
+            if ( ( lastSpd > 3 ) && ( interval > 5000 ) )  MainActivity.mapView.post(() -> {
+                updateInterval( 1000); });
+            if ( ( lastSpd < 2 ) && ( interval < 5000 ) )  MainActivity.mapView.post(() -> {
+                updateInterval( 30000); });
+
             if (deadbandSuppress(loc.getLatitude(), loc.getLongitude(), altFt)) return;
 
             if (writer != null) {
