@@ -831,17 +831,23 @@ public class SkyBar {
 
         int dayOfYear = dayOfYear(y, mo, d);
 
-        double phase = calcMoonPhase(date);
-        double dayPhase = (phase - 20 + 29) % 29;
-        //say("calcSkyBar phase: " + phase + " dayPhase: " + dayPhase);
-
         double[] rs = sunriseSunsetMinutes(SKY_LAT, dayOfYear);
         double sunrise = rs[0];
         double sunset = rs[1];
         //say("calcSkyBar sunrise: " + (int) sunrise + " sunset: " + (int) sunset);
 
-        double moonrise = ( (24 * dayPhase) / 29 ) % 24;
+        // moon nearest day - off by 12 hours?, I don't care - that's effectively 28 minutes off
+        // when I figure out what time of day it rises, and the calculation simplicity
+        // is much more important than being accurate to daily fraction based on longitude or season
+        //      newmoon rises at sunrise,
+        //      first quarter moon rises at noon, (7.3 days)
+        //      fullmoon rises at sunset, (14.6 days)
+        //      third quarter rises at midnight. (21.9 days) - round down gives "better" warning
+        double phase = calcMoonPhase(date);  // this is the new moon
+        double dayPhase = (phase - 21 + 29) % 29; // this is the last quarter
+        double moonrise = ( (24 * dayPhase) / 29 ) % 24;  //last quarter rises at midnight 00:00:00
         double moonset = (moonrise + 12) % 24;
+        //say("calcSkyBar phase: " + phase + " dayPhase: " + dayPhase);
         //say("calcSkyBar moonrise: " + (int) moonrise + " moonset: " + (int) moonset);
         moonrise = moonrise * 60; //minutes
         moonset = moonset * 60;
