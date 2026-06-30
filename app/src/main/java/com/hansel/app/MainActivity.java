@@ -70,8 +70,8 @@ public class MainActivity extends Activity {
     private static final int REQUEST_SPOOL = 1096;
     // breadcrumb dot color - toasted white bread gold
     private static final int REPLAY_DOT_COLOR = 0xFFD4A017;
-    // TODO: make this a SharedPreferences user setting, range 100-60000
-    private static final int MAX_REPLAY_POINTS = 4000;
+    // TODO: make this a SharedPreferences user setting, range 100-600000
+    private static final int MAX_REPLAY_POINTS = 525000;
     // tracks all breadcrumb dot markers for pruning and clearing
     private static final java.util.List<org.osmdroid.views.overlay.Marker>
             replayDots = new java.util.ArrayList<>();
@@ -198,15 +198,8 @@ public class MainActivity extends Activity {
 
     /**
      * Called from WebAppInterface.replayPoint() on each replay step.
-     * Adds the point to the current polyline segment.  If the jump
-     * from the last point exceeds one mile, drops a dot at the remote
-     * point and starts a fresh segment - map does not follow across
-     * the gap.  Enforces MAX_REPLAY_POINTS by removing the oldest
-     * segment when exceeded.
-     *
-     * Handles a single replay point from JS.
      * Plots a breadcrumb dot, prunes oldest if over MAX_REPLAY_POINTS,
-     * and follows only when last 2 points are nearby (5 decimal truncation).
+     * and recenters only when last 2 points are nearby (3 decimal truncation).
      *
      * @param data JSON string from JS, contains t, lat, lon, etc.
      */
@@ -239,7 +232,7 @@ public class MainActivity extends Activity {
 
                 replayHeadMarker.setPosition(pt);
 
-                if (replayFollowMode && replayIsNearby(pt)) {
+                if ( replayFollowMode && replayIsNearby(pt) ) {
                     programmingScroll = true;
                     //mapView.getController().animateTo(pt);
                     mapView.getController().setCenter(pt);
@@ -626,7 +619,7 @@ public class MainActivity extends Activity {
             //I can re-trigger debug here as often as needed
             say(gpsInfoOverlay.getTypeface().toString());
             if (Build.VERSION.SDK_INT >= 34) {
-                say("hmm pressed " + gpsInfoOverlay.getTypeface().getSystemFontFamilyName());
+                say("hmm pressed ");
             }
             programmingScroll = true;
             //mapView.getController().animateTo(new GeoPoint(19.411, -155.269));

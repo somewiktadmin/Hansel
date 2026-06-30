@@ -784,6 +784,18 @@
             }
 
             /**
+             * Called from LocationService.handleLocation() via evaluateJavascript()
+             * whenever the speed-based deadband logic changes the logging interval.
+             * Syncs the local interval variable and the select element so the UI
+             * reflects the interval Java actually switched to, regardless of
+             * whether the change originated from the user or from speed.
+             */
+            function onIntervalChanged(newInterval) {
+                interval = newInterval;
+                document.getElementById("interval").value = String(newInterval);
+            }
+
+            /**
              * Receives a GPS fix from LocationService via evaluateJavascript().
              * Ignored during replay.  Parses the JSON, formats coordinates,
              * updates the points array (1500 point cap), updates the UI,

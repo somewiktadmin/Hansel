@@ -358,9 +358,9 @@ public class LocationService extends Service {
      * Updates the GPS fix request interval.  Enforces INTERVAL_FLOOR_MS
      * to prevent timestamp collisions and phone overheating.
      *
-     * The body of this method is guarded by if(false) and does not
-     * execute.  Re-registering the location listener on every interval
-     * change caused a double-listener bug.  The guard is the fix.  The
+     * Re-registering the location listener on every interval
+     * change caused a double-listener bug.  The removeLocationUpdates
+     * is the fix.  The
      * UI element that called this has been removed.  The method and its
      * floor logic are retained as a reference for when interval adjustment
      * is revisited post-v1.0.
@@ -463,14 +463,14 @@ public class LocationService extends Service {
      */
     void sendToUI(String json) {
         if (MainActivity.webView == null) return;
-        android.os.Handler h = new android.os.Handler(getMainLooper());
-        h.post(() ->
+        MainActivity.webView.post(() ->
                 MainActivity.webView.evaluateJavascript(
                         "onGPSUpdate(" + JSONObject.quote(json) + ")",
                         null
                 )
         );
     }
+
 
     /**
      * As long as every class routes through here, all is well.
@@ -483,11 +483,10 @@ public class LocationService extends Service {
         Log.d(tag, something);
         String displayMsg = module + something;
 
-        new android.os.Handler(Looper.getMainLooper()).post(() -> {
-            if (MainActivity.webView == null) return;
-            MainActivity.webView.evaluateJavascript(
-                    "say(" + JSONObject.quote(displayMsg) + ")", null);
-        });
+        if (MainActivity.webView != null)
+            MainActivity.webView.post(() ->
+                MainActivity.webView.evaluateJavascript(
+                "say(" + JSONObject.quote(displayMsg) + ")", null));
     }
 
     /**
@@ -987,9 +986,13 @@ public class LocationService extends Service {
 
             //Fsck deadband - if I am stopped, slow way down, if moving speed up.  Duh.
             if ( ( lastSpd > 3 ) && ( interval > 5000 ) )  MainActivity.mapView.post(() -> {
-                updateInterval( 1000); });
+                updateInterval( 1000 );
+                MainActivity.webView.evaluateJavascript("onIntervalChanged(1000)", null);
+            });
             if ( ( lastSpd < 2 ) && ( interval < 5000 ) )  MainActivity.mapView.post(() -> {
-                updateInterval( 30000); });
+                updateInterval( 30000 );
+                MainActivity.webView.evaluateJavascript("onIntervalChanged(30000)", null);
+            });
 
             if (deadbandSuppress(loc.getLatitude(), loc.getLongitude(), altFt)) return;
 
