@@ -45,6 +45,27 @@ import java.io.File;
  *
  * TODO: Rewrite this Javadoc block once OSMDroid integration and replay are stable.
  *
+
+ ===========================================================================
+ HANSEL project-wide DATETIME STANDARD (HDS-7)
+ ===========================================================================
+
+ All user-visible dates/times, filenames, directory names, temporary names,
+ and generated media names SHALL use LOCAL HST time.  UTC/Unix timestamps
+ are NOT permitted in names.  When external interfaces (USGS) require UTC/
+ epoch, convert immediately to HDS-7 on ingress.
+
+ Format:	    yyyy-MM-dd_HH-mm-ss		where "_" may be " " for display
+
+ Python:        dt.strftime("%Y-%m-%d_%H-%M-%S")
+ Java:          SimpleDateFormat("yyyy-MM-dd_HH-mm-ss")
+ JavaScript:    return `${Y}-${M}-${D}_${h}-${m}-${s}`;
+ bash:          date +"%Y-%m-%d_%H-%M-%S"
+ Windows:       Get-Date -Format 'yyyy-MM-dd_HH-mm-ss'
+ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
+
+
+ *
  * Future: MainActivity and the WebView UI are destined to become a
  * separate viewer app (Gretel).  The logging core - LocationService and
  * its file I/O - will move to a standalone headless Hansel app.  That
