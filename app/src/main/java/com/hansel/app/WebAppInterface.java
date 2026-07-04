@@ -116,6 +116,21 @@ public class WebAppInterface {
         }
     }
 
+    @JavascriptInterface
+    public int getMaxReplayPoints() {
+        return MainActivity.maxReplayPoints;
+    }
+
+    @JavascriptInterface
+    public void setMaxReplayPoints(String value) {
+        int n = Integer.parseInt(value);
+        MainActivity.maxReplayPoints = n;
+        context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putInt(MainActivity.PREF_MAX_REPLAY_POINTS, n)
+                .apply();
+    }
+
     /**
      * Returns a DocumentFile handle to the working directory from the SAF
      * tree URI stored in HanselPrefs.  Never called - all file access goes

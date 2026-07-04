@@ -113,6 +113,9 @@ public class MainActivity extends Activity {
     public static boolean programmingScroll = false; //for animateTo() scrolling
     private static android.graphics.drawable.Drawable replayDotDrawable = null;
 
+    static final String PREF_MAX_REPLAY_POINTS = "max_replay_points";
+    public static int maxReplayPoints = 25000;
+
     /** say() convenience debug method because LOGCAT fails most
      *  of the time on Android Studio Bumblebee. */
     public void say(String something) { LocationService.say(something, "mainAct."); }
@@ -225,7 +228,7 @@ public class MainActivity extends Activity {
                 replayDots.add(dot);
 
                 // prune oldest dot if over limit
-                if (replayDots.size() > MAX_REPLAY_POINTS) {
+                if (replayDots.size() > maxReplayPoints) {
                     org.osmdroid.views.overlay.Marker oldest = replayDots.remove(0);
                     mapView.getOverlays().remove(oldest);
                 }
@@ -515,6 +518,7 @@ public class MainActivity extends Activity {
 
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         int interval = prefs.getInt("last_interval", 5000); //30_000 30000
+        maxReplayPoints = prefs.getInt(PREF_MAX_REPLAY_POINTS, 25000);
 
         setContentView(R.layout.activity_main);
         webView = findViewById(R.id.webView);

@@ -82,17 +82,6 @@
 <h2 title="Hansel-app logs paths. Gretel-app listens.">Hansel - notes v0.987</h2>
 -->
 
-<label>Sample Interval</label>
-<select id="interval" onchange="AndroidBridge.setInterval(this.value)">
-    <option value="1000">1 sec</option>
-    <option selected value="5000">5 sec</option>
-    <option value="15000">15 sec</option>
-    <option value="30000">30 sec</option>
-    <option value="60000">60 sec</option>
-    <option value="300000">5 min</option>
-    <option value="3600000">1 hr</option>
-</select>
-
 <div id="status">Idle</div>
 <pre id="readout">Waiting...</pre>
 
@@ -140,6 +129,27 @@
         rows="12"
         style="width: 99%; background: #000; color: #0f0; font-size: 10px"
 ></textarea>
+
+<label>Sample Interval</label>
+<select id="interval" onchange="AndroidBridge.setInterval(this.value)">
+    <option value="1000">1 sec</option>
+    <option selected value="5000">5 sec</option>
+    <option value="15000">15 sec</option>
+    <option value="30000">30 sec</option>
+    <option value="60000">60 sec</option>
+    <option value="300000">5 min</option>
+    <option value="3600000">1 hr</option>
+</select>
+
+<label>Max Replay Points</label>
+<select id="maxReplayPoints" onchange="AndroidBridge.setMaxReplayPoints(this.value)">
+    <option value="100">100</option>
+    <option value="500">500</option>
+    <option value="1500">1500</option>
+    <option value="2500">2500</option>
+    <option value="25000">25000</option>
+    <option value="55000">55000</option>
+</select>
 
 <select id="replaySpeed">
     <option value="500">0.5s</option>
@@ -252,6 +262,9 @@
                 loadSounds();
                 rebuildButtons();
                 saveSounds();
+
+                document.getElementById("maxReplayPoints").value =
+                    String(AndroidBridge.getMaxReplayPoints());
 
                 document
                     .getElementById("noteInput")
