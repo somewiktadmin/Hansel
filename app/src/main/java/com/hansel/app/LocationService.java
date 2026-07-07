@@ -618,8 +618,9 @@ public class LocationService extends Service {
             if (name == null) continue;
 
             //if ( ( !name.endsWith(".ndjson") ) &&
-              //      ( !name.endsWith(".ndjson (1)") ) ) continue;
-            if (!name.endsWith("\\.ndjson( \\(\\d+\\))?")) continue;
+            //        ( !name.endsWith(".ndjson (1)") ) ) continue;
+            if (!name.replaceAll(" \\(\\d+\\)$", "").endsWith(".ndjson")) continue;
+            //if (!name.endsWith("\\.ndjson( \\(\\d+\\))?")) continue;
             if (name.contains("-00_00-00-00")) continue;
             if (name.startsWith(today)) continue;
             if (name.startsWith(yesterday)) continue;

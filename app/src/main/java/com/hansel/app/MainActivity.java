@@ -395,6 +395,8 @@ public class MainActivity extends Activity {
         zoomerLon = lon;
         zoomerAlt = altFt;
         zoomerZoom = zoom;
+        GeoPoint pt = new GeoPoint(lat, lon);
+        if (liveFollowMode) mapView.getController().setCenter(pt);
         rebuildGpsInfoOverlay();
     }
 
