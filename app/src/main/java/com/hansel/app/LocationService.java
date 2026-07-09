@@ -10,6 +10,8 @@ import android.app.Service;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.location.Location;
 import android.net.Uri;
 import android.os.Handler;
@@ -33,6 +35,7 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -182,6 +185,15 @@ public class LocationService extends Service {
 
     /** Most recent bearing in degrees from FusedLocationProvider. */
     private float lastCrs = 0.0f;
+
+    /** Last terrain-validated altitude in feet. Substituted when GPS altitude
+     *  deviates more than 1000ft from the BigIsland elevation table. Zero until
+     *  first valid reading. */
+    private double lastAltFt = 0;
+
+    /** Read-only handle to the Big Island elevation table.  Opened in onCreate(),
+     *  null if the DB failed to load. */
+    private SQLiteDatabase elevationDb = null;
 
     /**
      * Drives the daily noon consolidation.  consolidateOldFiles() runs at
@@ -952,7 +964,27 @@ public class LocationService extends Service {
      */
      void handleLocation(Location loc) {
         try {
-            double altFt = loc.hasAltitude() ? loc.getAltitude() * 3.28084 : 0;
+
+            double altFt = loc.hasAltitude() ? loc.getAltitude() * 3.28084 : lastAltFt;
+            if (elevationDb != null) {
+                int lat3dp = (int) Math.round(loc.getLatitude()  * 1000); //three dp ~= 110m ~= 350'
+                int lon3dp = (int) Math.round(loc.getLongitude() * 1000);
+                Cursor c = elevationDb.rawQuery(
+                        "SELECT alt_ft FROM elevation WHERE lat_3dp=" + lat3dp +
+                                " AND lon_3dp=" + lon3dp, null);
+                if (c.moveToFirst()) {
+                    int tableAltFt = c.getInt(0);
+                    if (Math.abs(altFt - tableAltFt) <= 200) {
+                        lastAltFt = altFt;   // good reading
+                    } else {
+                        // vibrate phone?
+                        altFt = lastAltFt;   // substitute, discard bad raw
+                    }
+                } else {
+                    lastAltFt = altFt;       // off-island, trust GPS
+                }
+                c.close();
+            }
 
             long now = System.currentTimeMillis();
             String hour = getHourKey(now);
@@ -991,8 +1023,8 @@ public class LocationService extends Service {
                 MainActivity.webView.evaluateJavascript("onIntervalChanged(1000)", null);
             });
             if ( ( lastSpd < 2 ) && ( interval < 5000 ) )  MainActivity.mapView.post(() -> {
-                updateInterval( 30000 );
-                MainActivity.webView.evaluateJavascript("onIntervalChanged(30000)", null);
+                updateInterval( 15000 );
+                MainActivity.webView.evaluateJavascript("onIntervalChanged(15000)", null);
             });
 
             if (deadbandSuppress(loc.getLatitude(), loc.getLongitude(), altFt)) return;
@@ -1207,6 +1239,23 @@ public class LocationService extends Service {
     public void onCreate() {
         super.onCreate();
         instance = this;
+        try {
+            String dbName = "2026_07_08_bigisland_elevation.db";
+            File dbFile = new File(getFilesDir(), dbName);
+            if (!dbFile.exists()) {
+                try (InputStream in = getAssets().open(dbName);
+                     OutputStream out = new java.io.FileOutputStream(dbFile)) {
+                    byte[] buf = new byte[65536];
+                    int n;
+                    while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                }
+            }
+            elevationDb = SQLiteDatabase.openDatabase(
+                    dbFile.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY);
+        } catch (Exception e) {
+            elevationDb = null;
+            say("elevation DB load failed: " + e.getMessage());
+        }
         client = LocationServices.getFusedLocationProviderClient(this);
     }
 
