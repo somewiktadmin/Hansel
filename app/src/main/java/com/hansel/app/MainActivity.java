@@ -169,6 +169,7 @@ public class MainActivity extends Activity {
         btnMe.setTextColor(Color.GREEN);
         liveUpdatesPausedFloatie.setVisibility(View.GONE);
         replayPausedFloatie.setVisibility(View.GONE);
+        locationOverlay.enableFollowLocation(); //resets with every pan action
         if (locationOverlay.getMyLocation() != null) {
             mapView.getController().setZoom(15);
             programmingScroll = true;
