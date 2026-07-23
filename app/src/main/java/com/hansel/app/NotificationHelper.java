@@ -1,5 +1,5 @@
 /*
- * Hansel - GPS breadcrumb logger v0.987
+ * Hansel - GPS breadcrumb logger v0.988
  * Copyright (C) 2026 GrimmsTales
  * GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
  */
@@ -14,7 +14,7 @@ import android.os.Build;
 import androidx.core.app.NotificationCompat;
 
 /**
- * Hansel GPS breadcrumb logger - v0.987.
+ * Hansel GPS breadcrumb logger - v0.988.
  *
  * Builds the foreground service notification required by Android SDK 26+
  * for any service that runs while the app is in the background.  On SDK 26+

@@ -1,5 +1,5 @@
 /*
- * Hansel - GPS breadcrumb logger v0.987
+ * Hansel - GPS breadcrumb logger v0.988
  * Copyright (C) 2026 GrimmsTales
  * GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
  */
@@ -41,7 +41,7 @@ import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 import java.io.File;
 
 /**
- * Hansel v0.987 main activity.
+ * Hansel v0.988 main activity.
  *
  * TODO: Rewrite this Javadoc block once OSMDroid integration and replay are stable.
  *
@@ -414,7 +414,7 @@ public class MainActivity extends Activity {
      * skyBarBox is updated separately by updateSkyOverlay().
      *
      * gpsInfoOverlay layout (zero-based):
-     * 0: "Hansel v0.987" left, zoomerLine right-justified with monospace spaces
+     * 0: "Hansel v0.986" left, zoomerLine right-justified with monospace spaces
      * 1: mostCurrentGPS (timestamp first, lat, lon, alt, spd)
      */
     public static void rebuildGpsInfoOverlay() {
@@ -427,7 +427,7 @@ public class MainActivity extends Activity {
         String zoomer = String.format(java.util.Locale.US,
                 "%.6f %.6f %s Z:%d",
                 zoomerLat, zoomerLon, altStr, zoomerZoom);
-        String label = "Hansel v0.987     ";
+        String label = "Hansel v0.988     ";
         // TODO: pad between label and zoomer to fill overlayChars
         int spaces = Math.max( 1, overlayChars - label.length() - zoomer.length() - 1 );
         StringBuilder pad = new StringBuilder();
@@ -536,7 +536,7 @@ public class MainActivity extends Activity {
         initOsmdroid();
         Configuration.getInstance()
                 .setUserAgentValue(
-                        "Hansel/0.987 personal field logger - single user, multiple test devices, Kilauea HI");
+                        "Hansel/0.988 personal field logger - single user, multiple test devices, Kilauea HI");
         say( Configuration.getInstance().getOsmdroidBasePath().getAbsolutePath() );
         say( Configuration.getInstance().getOsmdroidTileCache().getAbsolutePath() );
 

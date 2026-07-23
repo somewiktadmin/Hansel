@@ -1,5 +1,5 @@
 /*
- * Hansel - GPS breadcrumb logger v0.987
+ * Hansel - GPS breadcrumb logger v0.988
  * Copyright (C) 2026 GrimmsTales
  * GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
  */
@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.DuplicateFormatFlagsException;
 
 /**
- * Hansel GPS breadcrumb logger - v0.987.
+ * Hansel GPS breadcrumb logger - v0.988.
  *
  * WebAppInterface is the bridge between index.html (JavaScript) and the
  * Android Java layer.  Every method annotated @JavascriptInterface is
