@@ -45,6 +45,18 @@ import java.io.File;
  *
  * TODO: Rewrite this Javadoc block once OSMDroid integration and replay are stable.
  *
+ * TODO: Add quicktile for Hansel logging
+ * TODO: Add quicktile for speedometer
+ * TODO: Add dragable/movable speedometer overlay (settings: color white on black or black on white, size)
+ * TODO: Add breadcrumbs to live-follow mode
+ * TODO: within Kilauea caldera, display all rim altitudes that I have measured, in
+ *       the last 3 days, 7 days, 14 days, 21 days, 31 days, 90 days, 365, or all.
+ * TODO: figure out how to cartoon-caption these altitudes with cartoon triangle-arrows
+ *       pointing back to the precise location, without ever cluttering inside the caldera.
+ * TODO: Additionally, show those altitude's relative height from the north vent height, and
+ *       while at it, the distance to the north vent
+ *
+ *
 
  ===========================================================================
  HANSEL project-wide DATETIME STANDARD (HDS-7)
