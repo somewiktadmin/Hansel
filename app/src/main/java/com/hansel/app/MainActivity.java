@@ -43,19 +43,18 @@ import java.io.File;
 /**
  * Hansel v0.988 main activity.
  *
- * TODO: Rewrite this Javadoc block once OSMDroid integration and replay are stable.
- *
- * TODO: Add quicktile for Hansel logging
- * TODO: Add quicktile for speedometer
- * TODO: Add dragable/movable speedometer overlay (settings: color white on black or black on white, size)
+ * TODO: Fix playback bug that causes random [replay paused] and at the end a new [history replaying] for no reason
  * TODO: Add breadcrumbs to live-follow mode
+ * TODO: Add quicktile for Hansel logging
+ * TODO: Add dragable/movable speedometer overlay (settings: color white on black or black on white, size)
+ * TODO: Add quicktile for speedometer
  * TODO: within Kilauea caldera, display all rim altitudes that I have measured, in
  *       the last 3 days, 7 days, 14 days, 21 days, 31 days, 90 days, 365, or all.
  * TODO: figure out how to cartoon-caption these altitudes with cartoon triangle-arrows
  *       pointing back to the precise location, without ever cluttering inside the caldera.
  * TODO: Additionally, show those altitude's relative height from the north vent height, and
  *       while at it, the distance to the north vent
- *
+ * TODO: Rewrite this Javadoc block once OSMDroid integration and replay are stable.
  *
 
  ===========================================================================
@@ -149,6 +148,11 @@ public class MainActivity extends Activity {
     static final String PREF_MAX_REPLAY_POINTS = "max_replay_points";
     public static int maxReplayPoints = 25000;
 
+    private static final long PAN_IDLE_TIMEOUT_MS = 60000;
+    private static final android.os.Handler panIdleHandler =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    private static Runnable panIdleRunnable = null;
+
     /** say() convenience debug method because LOGCAT fails most
      *  of the time on Android Studio Bumblebee. */
     public void say(String something) { LocationService.say(something, "mainAct."); }
@@ -175,6 +179,9 @@ public class MainActivity extends Activity {
     // Replay is stopped by setting replayInProgress=false only; the JS
     // replay interval will exhaust naturally or be stopped separately.
     public static void resumeLive() {
+        if (replayInProgress) {
+            webView.post(() -> webView.evaluateJavascript("pauseReplay()", null));
+        }
         replayInProgress = false;
         replayFollowMode = true;
         liveFollowMode = true;
@@ -645,8 +652,32 @@ public class MainActivity extends Activity {
                     webView.evaluateJavascript("resumeReplay()", null));
         });
 
-        // [HMM] - Halemaumau
+        /**
+         * [HMM] - Halemaumau.
+         *
+         * Deliberately does NOT show liveUpdatesPausedFloatie ("[ HISTORY
+         * REPLAYING ]") and does NOT get a pan-idle auto-return timer,
+         * unlike a manual pan.  Both omissions are intentional:
+         *
+         * - No floatie: HMM is often used right before a screenshot: the
+         *   label would be visible clutter in the shot.
+         * - No timer: panning away is "I got distracted, bring me back
+         *   automatically."  Tapping HMM is "take me to Halema'uma'u," a
+         *   deliberate destination.  Auto-snapping back after 60s would
+         *   undermine that - the user presses [ME] when they're done
+         *   looking, not on a clock.  Subtle difference from panning, but
+         *   real.
+         *
+         * liveFollowMode is still cleared unconditionally (HMM moves the
+         * view away from the live position same as a pan would), and
+         * btnMe is forced black here for readability - green text does
+         * not read well against the button's gray background.
+         */
         btnHMM.setOnClickListener(v -> {
+            liveFollowMode = false;
+            locationOverlay.disableFollowLocation();
+            btnMe.setTextColor(Color.BLACK);
+
             if (replayInProgress) {
                 replayFollowMode = false;
                 replayPausedFloatie.setVisibility(View.VISIBLE);
@@ -707,6 +738,7 @@ public class MainActivity extends Activity {
                 }
                 liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
                 liveFollowMode = false;
+                locationOverlay.disableFollowLocation();
                 if (btnMe != null) btnMe.setTextColor(Color.BLACK);
                 // [HISTORY REPLAYING] only shown during replay, not during live pan
                 if (replayInProgress) {
@@ -722,9 +754,41 @@ public class MainActivity extends Activity {
                 zoomerLon = gs.getLongitude();
                 //zoomerAlt = 0; //TODO get nearest 3 decimal lat,lon altitude or 4 decimal? From my collected data
                 rebuildGpsInfoOverlay();
+
+                if (panIdleRunnable != null) panIdleHandler.removeCallbacks(panIdleRunnable);
+                panIdleRunnable = () -> {
+                    if (replayInProgress) {
+                        replayFollowMode = true;
+                        replayPausedFloatie.setVisibility(View.GONE);
+                        webView.post(() -> webView.evaluateJavascript("resumeReplay()", null));
+                    } else {
+                        resumeLive();
+                    }
+                };
+                panIdleHandler.postDelayed(panIdleRunnable, PAN_IDLE_TIMEOUT_MS);
+
                 return false;
             }
 
+            /**
+             * DESIGN CHOICE, not dead code: zoom never clears liveFollowMode
+             * nor replayFollowMode, and never pauses replay.
+             *
+             * Panning (onScroll) means the user wants to look somewhere else,
+             * so it breaks follow.  Zooming in/out is not that - the user is
+             * still watching the same subject (live position or replay dot),
+             * just closer or further away.  Whatever was being followed
+             * before the zoom is still being followed after it.
+             *
+             * The zoom buttons are deliberately always-visible screen furniture
+             * for this reason - zoom is orthogonal to follow state, so it
+             * never needs to be gated behind ME/HMM/floatie taps the way
+             * follow-breaking actions do.
+             *
+             * The block below is the old onScroll-style handling, kept only
+             * as a record of the alternative that was considered and
+             * rejected.  Do not revive it - see comment above.
+             */
             @Override
             public boolean onZoom(ZoomEvent event) {
                 return false;
