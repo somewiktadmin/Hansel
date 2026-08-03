@@ -148,7 +148,7 @@ public class MainActivity extends Activity {
     static final String PREF_MAX_REPLAY_POINTS = "max_replay_points";
     public static int maxReplayPoints = 25000;
 
-    private static final long PAN_IDLE_TIMEOUT_MS = 60000;
+    private static final long PAN_IDLE_TIMEOUT_MS = 300000;
     private static final android.os.Handler panIdleHandler =
             new android.os.Handler(android.os.Looper.getMainLooper());
     private static Runnable panIdleRunnable = null;
@@ -732,6 +732,7 @@ public class MainActivity extends Activity {
         mapView.addMapListener(new MapListener() {
             @Override
             public boolean onScroll(ScrollEvent event) {
+                say("onScroll fired, programmingScroll=" + programmingScroll);
                 if (programmingScroll) {
                     programmingScroll = false;
                     return false;
@@ -739,6 +740,7 @@ public class MainActivity extends Activity {
                 liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
                 liveFollowMode = false;
                 locationOverlay.disableFollowLocation();
+
                 if (btnMe != null) btnMe.setTextColor(Color.BLACK);
                 // [HISTORY REPLAYING] only shown during replay, not during live pan
                 if (replayInProgress) {
@@ -756,16 +758,21 @@ public class MainActivity extends Activity {
                 rebuildGpsInfoOverlay();
 
                 if (panIdleRunnable != null) panIdleHandler.removeCallbacks(panIdleRunnable);
+                say("onScroll: real pan detected, scheduling 60s panIdle timer");
                 panIdleRunnable = () -> {
+                    say("panIdle timer FIRED - snapping back to " + (replayInProgress ? "replay" : "live"));
                     if (replayInProgress) {
                         replayFollowMode = true;
                         replayPausedFloatie.setVisibility(View.GONE);
                         webView.post(() -> webView.evaluateJavascript("resumeReplay()", null));
+                        say("panIdleHndlerRunnable called webview resumeReplay()");
                     } else {
                         resumeLive();
+                        say("panIdleHndlerRunnable called esumeLive()");
                     }
                 };
                 panIdleHandler.postDelayed(panIdleRunnable, PAN_IDLE_TIMEOUT_MS);
+                say("panIdle timer scheduled");
 
                 return false;
             }

@@ -113,6 +113,8 @@ public class WebAppInterface {
             // broken android interface do it for you, you get interval = 0
             int interval = Integer.parseInt(intervalString);
             LocationService.instance.updateInterval( interval );
+            context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit().putInt("last_interval", interval).apply();
         }
     }
 
