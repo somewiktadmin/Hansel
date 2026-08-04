@@ -44,8 +44,6 @@ import java.util.DuplicateFormatFlagsException;
  * is either running or it is not - if it is not running, the null checks
  * short-circuit cleanly.
  *
- * TODO: Remove or replace setInterval() once updateInterval() is fully
- *       retired from LocationService.
  * TODO: Remove getTreeDir() - it is never called.  All file access goes
  *       through resolveTreeUriToFile().  Retained only because removing
  *       dead SAF code requires confirming nothing else sneaks back to it.
@@ -92,16 +90,31 @@ public class WebAppInterface {
     }
 
     /**
+     * Returns the interval the dropdown should actually show on page load.
+     * Prefers the live LocationService's running interval when the service
+     * is already active (the common case - see the startLogging() doc
+     * comment on why the service is usually already running by the time
+     * this is called).  Falls back to the persisted last_interval when the
+     * service hasn't started yet.
+     */
+    @JavascriptInterface
+    public int getCurrentInterval() {
+        if (LocationService.instance != null) {
+            return LocationService.instance.interval;
+        }
+        return context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
+                .getInt("last_interval", 5000);
+    }
+
+    /**
      * Sets the GPS logging interval.  Delegates to LocationService.updateInterval().
      *
-     *          RESTORED AND DELETED TOO MANY TIMES!
-     *          OBVIOUSLY NEEDED, JUST WRONG PROMINENCE.
+     *     RESTORED AND DELETED TOO MANY TIMES!  OBVIOUSLY NEEDED!
      *
-     *       updateInterval() was guarded by if(false) in LocationService and
-     *       did nothing.  This method was therefore also a no-op.  Both should
-     *       be removed or properly implemented each time interval adjustment is
-     *       revisited.  Speed > 5MPH force interval 1000ms?  Speed < 1MPH force
-     *       interval 30000ms?  5000ms?
+     * Persists the choice to last_interval so it survives a restart; see
+     * getCurrentInterval() below, which is what the dropdown reads back on
+     * page load.
+     *
      * @param intervalString requested interval in milliseconds.
      */
     @JavascriptInterface

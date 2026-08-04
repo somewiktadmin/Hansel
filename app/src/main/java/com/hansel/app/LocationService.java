@@ -113,7 +113,7 @@ public class LocationService extends Service {
      * A new instance is created each time startGPS() is called - there is
      * no mechanism to call startGPS() twice, but if that ever changed it
      * would register a second listener without removing the first.
-     * TODO: Add a removeLocationUpdates() guard at the top of startGPS().
+     * REVISIT later possibly: Add a removeLocationUpdates() guard at the top of startGPS().
      */
     LocationCallback callback;
 
@@ -131,18 +131,23 @@ public class LocationService extends Service {
     DocumentFile currentFile;
 
     /**
-     * Hansel logging interval in milliseconds.  Currently fixed at 30_000.
-     * This value is also passed to FusedLocationProvider as a hint, but
-     * the logging cadence is what actually matters.
+     * Hansel logging interval in milliseconds.  Genuinely user-adjustable -
+     * see the interval dropdown in index.html, wired through
+     * WebAppInterface.setInterval()/getCurrentInterval().
      *
-     * This was once a user-selectable setting.  Values below 30_000 cause
-     * duplicate timestamps.  Values above 30_000 degrade
-     * audio/video sync and file rotation timing.  30 seconds is not a default,
-     * it is the only working value at this stage of the project.
+     * INTERVAL_FLOOR_MS (1000ms) below is a real, permanent floor tied to
+     * filename timestamp granularity (yyyy-MM-dd_HH-mm-ss) - going below it
+     * causes duplicate filenames, not a temporary debugging-era limitation.
      *
-     * TODO: Remove the last_interval SharedPreference read in
-     *       startLoggingDefault() - it will always be 30_000 and pretending
-     *       otherwise is misleading.
+     * Values above 30_000 degrade audio/video sync and file rotation
+     * timing.  But capping that is pointless during testing, especially when
+     * deadband bugs keep resurfacing.
+     *
+     * A previous version of this comment claimed the interval was fixed at
+     * 30_000 and recommended removing the last_interval persistence
+     * entirely.  That was inaccurate - it described a temporary  made to
+     * isolate a related bug (see the startGPS()/rotateNow() duplicate-
+     * callback TODOs), not a real constraint.  Confirmed 2026-07-31.
      */
     int interval = 5000; //30000 30_000
 
