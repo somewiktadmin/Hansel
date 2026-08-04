@@ -60,6 +60,20 @@
             android:typeface="monospace"
             android:text="   12    16    20    00    04    08    12" />
 
+        <!-- Center-screen crosshair: visible exactly when liveUpdatesPausedFloatie
+                     is (map is not following live/replay position).  Marks where a
+                     future MARK MAP action would record, since the map center is
+                     the crosshair position by definition of how pan/zoom work -
+                     no coordinate math needed, just layout_gravity="center". -->
+        <ImageView
+            android:id="@+id/centerCrosshair"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_gravity="center"
+            android:visibility="gone"
+            android:src="@drawable/ic_crosshair"
+            android:contentDescription="Map center crosshair" />
+
         <!-- Paused floaties - top center, side by side.
              LIVE UPDATES PAUSED: visible when liveFollowMode=false.
              REPLAY PAUSED: visible when replayInProgress and replayFollowMode=false.

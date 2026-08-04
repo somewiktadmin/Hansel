@@ -99,9 +99,14 @@ public class WebAppInterface {
      */
     @JavascriptInterface
     public int getCurrentInterval() {
+        say("getCurrentInterval called by javascript");
         if (LocationService.instance != null) {
+            say("returning interval=" + LocationService.instance.interval);
             return LocationService.instance.interval;
         }
+        say("returning previously saved interval="
+             + context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
+                .getInt("last_interval", 5000) );
         return context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
                 .getInt("last_interval", 5000);
     }

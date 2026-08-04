@@ -224,9 +224,10 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
 
             let rollover = 3600;
 
-            // Logging interval in milliseconds.  30_000 is the only correct
-            // value - see LocationService.java interval field for the full story.
+            // Logging interval in milliseconds.
             let interval = 5000; // 30000 30_000
+            interval = AndroidBridge.getCurrentInterval();
+            onIntervalChanged( interval );
 
             let logLines = [];
             let points = [];
@@ -283,9 +284,6 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
 
                 document.getElementById("maxReplayPoints").value =
                     String(AndroidBridge.getMaxReplayPoints());
-
-                document.getElementById("interval").value =
-                    String(AndroidBridge.getCurrentInterval());
 
                 document
                     .getElementById("noteInput")

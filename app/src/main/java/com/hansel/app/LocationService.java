@@ -1025,10 +1025,12 @@ public class LocationService extends Service {
             //Fsck deadband - if I am stopped, slow way down, if moving speed up.  Duh.
             if ( ( lastSpd > 3 ) && ( interval > 5000 ) )  MainActivity.mapView.post(() -> {
                 updateInterval( 1000 );
+                say("Speed over 3, changing interval to 1,000 ms");
                 MainActivity.webView.evaluateJavascript("onIntervalChanged(1000)", null);
             });
             if ( ( lastSpd < 2 ) && ( interval < 5000 ) )  MainActivity.mapView.post(() -> {
                 updateInterval( 15000 );
+                say("Speed under 2mph, changing interval to 15,000 ms");
                 MainActivity.webView.evaluateJavascript("onIntervalChanged(15000)", null);
             });
 
@@ -1091,6 +1093,37 @@ public class LocationService extends Service {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Looks up ground elevation for an arbitrary lat/lon, using the same
+     * elevationDb table that handleLocation() already queries to validate
+     * GPS altitude readings during logging.  Exposed publicly so MainActivity
+     * can use it for the zoomer overlay (a panned/zoomed map point, not a
+     * live GPS fix) - the query itself is unchanged from handleLocation().
+     *
+     * Table resolution is a 3-decimal-place lat/lon grid, ~350ft per cell
+     * (see handleLocation()'s comment) - not literally accurate to 35ft
+     * despite how that was originally phrased for the 4dp table.
+     *
+     * @param lat latitude of the point to look up.
+     * @param lon longitude of the point to look up.
+     * @return elevation in feet, or 0 if elevationDb isn't open or the
+     *         point falls outside the table (off-island).
+     */
+    public Double lookupElevationFt(double lat, double lon) {
+        Double result = (double) 0;
+        if (elevationDb == null) return result;
+        int lat3dp = (int) Math.round(lat * 1000);
+        int lon3dp = (int) Math.round(lon * 1000);
+        Cursor c = elevationDb.rawQuery(
+                "SELECT alt_ft FROM elevation WHERE lat_3dp=" + lat3dp +
+                        " AND lon_3dp=" + lon3dp, null);
+        if (c.moveToFirst()) {
+            result = (double) c.getInt(0);
+        }
+        c.close();
+        return result;
     }
 
     /**
@@ -1244,6 +1277,7 @@ public class LocationService extends Service {
     public void onCreate() {
         super.onCreate();
         instance = this;
+        client = LocationServices.getFusedLocationProviderClient(this);
         try {
             String dbName = "2026_07_08_bigisland_elevation.db";
             File dbFile = new File(getFilesDir(), dbName);
@@ -1261,7 +1295,6 @@ public class LocationService extends Service {
             elevationDb = null;
             say("elevation DB load failed: " + e.getMessage());
         }
-        client = LocationServices.getFusedLocationProviderClient(this);
     }
 
     /**

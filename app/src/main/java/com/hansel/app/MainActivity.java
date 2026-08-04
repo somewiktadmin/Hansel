@@ -22,6 +22,7 @@ import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.core.content.ContextCompat;
@@ -142,6 +143,7 @@ public class MainActivity extends Activity {
     public static org.osmdroid.views.overlay.Marker replayHeadMarker;
     public static boolean liveFollowMode = true;
     public static TextView liveUpdatesPausedFloatie;
+    public static ImageView centerCrosshair;
     public static boolean programmingScroll = false; //for animateTo() scrolling
     private static android.graphics.drawable.Drawable replayDotDrawable = null;
 
@@ -188,6 +190,7 @@ public class MainActivity extends Activity {
         btnMe.setTextColor(Color.GREEN);
         liveUpdatesPausedFloatie.setVisibility(View.GONE);
         replayPausedFloatie.setVisibility(View.GONE);
+        centerCrosshair.setVisibility(View.GONE);
         locationOverlay.enableFollowLocation(); //resets with every pan action
         if (locationOverlay.getMyLocation() != null) {
             mapView.getController().setZoom(15);
@@ -582,6 +585,7 @@ public class MainActivity extends Activity {
                 .setLoadingLineColor(Color.argb(255, 0, 255, 0));
 
         replayPausedFloatie = findViewById(R.id.replayPausedFloatie);
+        centerCrosshair = findViewById(R.id.centerCrosshair);
         liveUpdatesPausedFloatie =
                 findViewById(R.id.liveUpdatesPausedFloatie);
 
@@ -732,12 +736,13 @@ public class MainActivity extends Activity {
         mapView.addMapListener(new MapListener() {
             @Override
             public boolean onScroll(ScrollEvent event) {
-                say("onScroll fired, programmingScroll=" + programmingScroll);
+                //say("onScroll fired, programmingScroll=" + programmingScroll);
                 if (programmingScroll) {
                     programmingScroll = false;
                     return false;
                 }
                 liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
+                centerCrosshair.setVisibility(View.VISIBLE);
                 liveFollowMode = false;
                 locationOverlay.disableFollowLocation();
 
@@ -754,25 +759,30 @@ public class MainActivity extends Activity {
                 zoomerZoom = (int) Math.round(mapView.getZoomLevelDouble());
                 zoomerLat = gs.getLatitude();
                 zoomerLon = gs.getLongitude();
-                //zoomerAlt = 0; //TODO get nearest 3 decimal lat,lon altitude or 4 decimal? From my collected data
+                Double lookedUpAltFt = (LocationService.instance != null)
+                        ? LocationService.instance.lookupElevationFt(zoomerLat, zoomerLon)
+                        : 0;
+                zoomerAlt = lookedUpAltFt ;
                 rebuildGpsInfoOverlay();
 
+                //if (nowMs - panIdleLastRescheduleAt >= 1000)
+
                 if (panIdleRunnable != null) panIdleHandler.removeCallbacks(panIdleRunnable);
-                say("onScroll: real pan detected, scheduling 60s panIdle timer");
+                //say("onScroll: real pan detected, scheduling 60s panIdle timer");
                 panIdleRunnable = () -> {
-                    say("panIdle timer FIRED - snapping back to " + (replayInProgress ? "replay" : "live"));
+                    //say("panIdle timer FIRED - snapping back to " + (replayInProgress ? "replay" : "live"));
                     if (replayInProgress) {
                         replayFollowMode = true;
                         replayPausedFloatie.setVisibility(View.GONE);
                         webView.post(() -> webView.evaluateJavascript("resumeReplay()", null));
-                        say("panIdleHndlerRunnable called webview resumeReplay()");
+                        //say("panIdleRunnable called webview resumeReplay()");
                     } else {
                         resumeLive();
-                        say("panIdleHndlerRunnable called esumeLive()");
+                        say("panIdleRunnable snapped back, called resumeLive()");
                     }
                 };
                 panIdleHandler.postDelayed(panIdleRunnable, PAN_IDLE_TIMEOUT_MS);
-                say("panIdle timer scheduled");
+                //say("panIdle timer scheduled");
 
                 return false;
             }
