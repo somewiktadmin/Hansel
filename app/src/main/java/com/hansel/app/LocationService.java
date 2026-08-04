@@ -1333,6 +1333,8 @@ public class LocationService extends Service {
             } else {
                 startForeground(1, NotificationHelper.build(this));
             }
+
+            interval = intent.getIntExtra("interval", interval);
             consolidateOldFiles();
             scheduleTopOfHourRotation();
             scheduleNoon();

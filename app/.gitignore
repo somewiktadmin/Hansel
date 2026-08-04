@@ -2,3 +2,5 @@
 *.ndjson
 *.idle*
 */.idle/*
+*.idea/*
+/.idea/misc.xml
