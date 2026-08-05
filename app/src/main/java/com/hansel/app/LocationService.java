@@ -1015,6 +1015,9 @@ public class LocationService extends Service {
 
             sendToUI(obj.toString());
 
+            /** plot a breadcrumb at live position */
+            MainActivity.handleReplayPoint( obj.toString() );
+
             if (!MainActivity.replayInProgress)
                 MainActivity.updateGpsInfoOverlay( t, lat, lon, altFt, lastSpd, lastCrs );
             else

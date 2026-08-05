@@ -169,6 +169,13 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
     <option value="55000">55000</option>
 </select>
 
+<label><input type="checkbox" id="startup72hr"
+              onchange="if(this.checked){document.getElementById('startupReplay').checked=false;}
+              AndroidBridge.setStartup72hr(this.checked);">72hr on startup</label>
+<label><input type="checkbox" id="startupReplay"
+              onchange="if(this.checked){document.getElementById('startup72hr').checked=false;}
+              AndroidBridge.setStartupReplay(this.checked);">Full replay on startup</label>
+
 <select id="replaySpeed">
     <option value="500">0.5s</option>
     <option value="200">0.2s</option>
@@ -282,8 +289,9 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
                 rebuildButtons();
                 saveSounds();
 
-                document.getElementById("maxReplayPoints").value =
-                    String(AndroidBridge.getMaxReplayPoints());
+                document.getElementById("maxReplayPoints").value = String(AndroidBridge.getMaxReplayPoints());
+                document.getElementById("startup72hr").checked = AndroidBridge.getStartup72hr();
+                document.getElementById("startupReplay").checked = AndroidBridge.getStartupReplay();
 
                 document
                     .getElementById("noteInput")

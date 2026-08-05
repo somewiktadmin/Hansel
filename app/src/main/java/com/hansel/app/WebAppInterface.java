@@ -151,6 +151,38 @@ public class WebAppInterface {
                 .apply();
     }
 
+    @JavascriptInterface
+    public boolean getStartup72hr() {
+        return MainActivity.startup72hr;
+    }
+
+    @JavascriptInterface
+    public void setStartup72hr(boolean value) {
+        MainActivity.startup72hr = value;
+        if (value) MainActivity.startupReplay = false;
+        context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(MainActivity.PREF_STARTUP_72HR, value)
+                .putBoolean(MainActivity.PREF_STARTUP_REPLAY, MainActivity.startupReplay)
+                .apply();
+    }
+
+    @JavascriptInterface
+    public boolean getStartupReplay() {
+        return MainActivity.startupReplay;
+    }
+
+    @JavascriptInterface
+    public void setStartupReplay(boolean value) {
+        MainActivity.startupReplay = value;
+        if (value) MainActivity.startup72hr = false;
+        context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(MainActivity.PREF_STARTUP_REPLAY, value)
+                .putBoolean(MainActivity.PREF_STARTUP_72HR, MainActivity.startup72hr)
+                .apply();
+    }
+
     /**
      * Returns a DocumentFile handle to the working directory from the SAF
      * tree URI stored in HanselPrefs.  Never called - all file access goes
@@ -203,6 +235,16 @@ public class WebAppInterface {
 
         SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
         interval = prefs.getInt("last_interval", interval );
+
+        // Startup replay toggles - at most one fires, per the mutual-exclusion
+        // enforced in setStartup72hr()/setStartupReplay().
+        if (MainActivity.startup72hr) {
+            MainActivity.webView.post(() ->
+                    MainActivity.webView.evaluateJavascript("replay72h()", null));
+        } else if (MainActivity.startupReplay) {
+            MainActivity.webView.post(() ->
+                    MainActivity.webView.evaluateJavascript("replay()", null));
+        }
 
         Intent i = new Intent(context, LocationService.class);
         i.putExtra("interval", interval);

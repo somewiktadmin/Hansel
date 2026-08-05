@@ -44,8 +44,6 @@ import java.io.File;
 /**
  * Hansel v0.988 main activity.
  *
- * TODO: Fix playback bug that causes random [replay paused] and at the end a new [history replaying] for no reason
- * TODO: Add breadcrumbs to live-follow mode
  * TODO: Add quicktile for Hansel logging
  * TODO: Add dragable/movable speedometer overlay (settings: color white on black or black on white, size)
  * TODO: Add quicktile for speedometer
@@ -148,7 +146,13 @@ public class MainActivity extends Activity {
     private static android.graphics.drawable.Drawable replayDotDrawable = null;
 
     static final String PREF_MAX_REPLAY_POINTS = "max_replay_points";
-    public static int maxReplayPoints = 25000;
+    public static int maxReplayPoints = 40000;
+
+    // Startup replay toggles - mutually exclusive, enforced in WebAppInterface setters.
+    static final String PREF_STARTUP_72HR = "startup_72hr";
+    static final String PREF_STARTUP_REPLAY = "startup_replay";
+    public static boolean startup72hr = true;
+    public static boolean startupReplay = false;
 
     private static final long PAN_IDLE_TIMEOUT_MS = 300000;
     private static final android.os.Handler panIdleHandler =
@@ -193,7 +197,7 @@ public class MainActivity extends Activity {
         centerCrosshair.setVisibility(View.GONE);
         locationOverlay.enableFollowLocation(); //resets with every pan action
         if (locationOverlay.getMyLocation() != null) {
-            mapView.getController().setZoom(15);
+            //mapView.getController().setZoom(15); // 2026-08-04 comment out - for now.  Maybe a user pref?
             programmingScroll = true;
             //mapView.getController().animateTo( locationOverlay.getMyLocation() );
             mapView.getController().setCenter(locationOverlay.getMyLocation());
@@ -255,6 +259,9 @@ public class MainActivity extends Activity {
             try {
                 org.json.JSONObject d = new org.json.JSONObject(data);
                 if (!d.has("t")) return;
+
+                centerCrosshair.setVisibility(View.GONE);
+
                 double lat = d.getDouble("lat");
                 double lon = d.getDouble("lon");
                 GeoPoint pt = new GeoPoint(lat, lon);
@@ -566,7 +573,10 @@ public class MainActivity extends Activity {
 
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         int interval = prefs.getInt("last_interval", 5000); //30_000 30000
-        maxReplayPoints = prefs.getInt(PREF_MAX_REPLAY_POINTS, 25000);
+        maxReplayPoints = prefs.getInt(PREF_MAX_REPLAY_POINTS, 40000);
+
+        startup72hr = prefs.getBoolean(PREF_STARTUP_72HR, true);
+        startupReplay = prefs.getBoolean(PREF_STARTUP_REPLAY, false);
 
         setContentView(R.layout.activity_main);
         webView = findViewById(R.id.webView);
