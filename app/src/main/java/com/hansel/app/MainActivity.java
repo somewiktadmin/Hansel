@@ -159,6 +159,8 @@ public class MainActivity extends Activity {
             new android.os.Handler(android.os.Looper.getMainLooper());
     private static Runnable panIdleRunnable = null;
 
+    public static SpeedometerView speedometerView;
+
     /** say() convenience debug method because LOGCAT fails most
      *  of the time on Android Studio Bumblebee. */
     public void say(String something) { LocationService.say(something, "mainAct."); }
@@ -364,6 +366,7 @@ public class MainActivity extends Activity {
 
         SkyBar.updateSkyOverlay(fixTime.substring(0, 10));
         rebuildGpsInfoOverlay();
+        if (speedometerView != null) speedometerView.setSpeed((float) spdMph);
     }
 
     /**
@@ -579,6 +582,9 @@ public class MainActivity extends Activity {
         startupReplay = prefs.getBoolean(PREF_STARTUP_REPLAY, false);
 
         setContentView(R.layout.activity_main);
+
+        speedometerView = findViewById(R.id.speedometerView);
+
         webView = findViewById(R.id.webView);
         mapView = findViewById(R.id.mapView);
 
