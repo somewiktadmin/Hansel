@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Hansel - GPS breadcrumb logger - v0.987
+    Hansel - GPS breadcrumb logger - v0.988
     Copyright (C) 2026 GrimmsTales
     GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -48,7 +48,7 @@
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="Hansel-v0.987"
+        android:label="Hansel-v0.988"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Hansel">
@@ -65,6 +65,17 @@
             android:foregroundServiceType="location"
             android:exported="false" />
 
+        <service
+            android:name=".HanselTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher_foreground"
+            android:label="Hansel"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name=".BootReceiver"
             android:enabled="true"
@@ -74,7 +85,6 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
             </intent-filter>
         </receiver>
-
 
     </application>
 
