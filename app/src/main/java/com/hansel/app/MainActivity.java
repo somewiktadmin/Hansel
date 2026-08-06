@@ -44,9 +44,6 @@ import java.io.File;
 /**
  * Hansel v0.988 main activity.
  *
- * TODO: Add quicktile for Hansel logging
- * TODO: Add dragable/movable speedometer overlay (settings: color white on black or black on white, size)
- * TODO: Add quicktile for speedometer
  * TODO: within Kilauea caldera, display all rim altitudes that I have measured, in
  *       the last 3 days, 7 days, 14 days, 21 days, 31 days, 90 days, 365, or all.
  * TODO: figure out how to cartoon-caption these altitudes with cartoon triangle-arrows
@@ -430,7 +427,12 @@ public class MainActivity extends Activity {
         zoomerZoom = zoom;
         if (!programmingScroll) {
             GeoPoint pt = new GeoPoint(lat, lon);
-            if (liveFollowMode) mapView.getController().setCenter(pt);
+            if (liveFollowMode) {
+                boolean prevProgrammingScroll = programmingScroll;
+                programmingScroll = true;
+                mapView.getController().setCenter(pt);
+                programmingScroll = prevProgrammingScroll;
+            }
         }
         rebuildGpsInfoOverlay();
     }
@@ -714,6 +716,11 @@ public class MainActivity extends Activity {
             if (Build.VERSION.SDK_INT >= 34) {
                 say("hmm pressed ");
             }
+
+            liveUpdatesPausedFloatie.setVisibility(View.GONE);
+            replayPausedFloatie.setVisibility(View.GONE);
+            centerCrosshair.setVisibility(View.GONE);
+
             programmingScroll = true;
             //mapView.getController().animateTo(new GeoPoint(19.411, -155.269));
             mapView.getController().setCenter(new GeoPoint(19.411, -155.269));
