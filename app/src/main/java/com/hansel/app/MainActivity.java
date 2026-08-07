@@ -82,8 +82,6 @@ import java.io.File;
  * place, and confirm it actually works on the target devices.
  * TODO: Add a "change folder" button or menu item so the user can re-pick
  * the working directory without reinstalling.
- * todo: Add BootReceiver to auto-resume LocationService after reboot, then
- * remove startLoggingDefault() from this class entirely.
  */
 public class MainActivity extends Activity {
 
@@ -98,7 +96,6 @@ public class MainActivity extends Activity {
     private static final int REQUEST_SPOOL = 1096;
     // breadcrumb dot color - toasted white bread gold
     private static final int REPLAY_DOT_COLOR = 0xFFD4A017;
-    // TODO: make this a SharedPreferences user setting, range 100-600000
     private static final int MAX_REPLAY_POINTS = 525000;
     // tracks all breadcrumb dot markers for pruning and clearing
     private static final java.util.List<org.osmdroid.views.overlay.Marker>
@@ -163,7 +160,7 @@ public class MainActivity extends Activity {
     public void say(String something) { LocationService.say(something, "mainAct."); }
 
     /**
-     * todo update this comment
+     * The drawableDot is a BREADCRUMB visually, as this whole project is named for
      */
     private static android.graphics.drawable.Drawable getReplayDot() {
         if (replayDotDrawable != null) return replayDotDrawable;
@@ -320,23 +317,6 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Creates a filled circle bitmap for breadcrumb dots.
-     * Toasted-bread gold, fixed screen size, zoom-invariant.
-     *
-     private static android.graphics.drawable.Drawable makeReplayDot() {
-     android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(
-     10, 10, android.graphics.Bitmap.Config.ARGB_8888);
-     android.graphics.Canvas c = new android.graphics.Canvas(bm);
-     android.graphics.Paint p = new android.graphics.Paint(
-     android.graphics.Paint.ANTI_ALIAS_FLAG);
-     p.setColor(REPLAY_DOT_COLOR);
-     c.drawCircle(5, 5, 3.5f, p);
-     return new android.graphics.drawable.BitmapDrawable(
-     mapView.getResources(), bm);
-     }
-     */
-
-    /**
      * Called from handleLocation() (1Hz live) and handleReplayPoint().
      * Updates cached status fields and triggers a full overlay rebuild.
      *
@@ -411,8 +391,8 @@ public class MainActivity extends Activity {
     /**
      * Updates cached center overlay fields and triggers overlay rebuild.
      * Called from onScroll(), onZoom(), and handleReplayPoint().
-     * Alt is 0 when called from pan/zoom (shown as "alt:?").
-     * TODO: look up nearest recorded alt from altitude database within 25ft.
+     * Alt is 0 when called from pan/zoom.
+     * TODO: look up nearest recorded alt from altitude database.
      *
      * @param lat   map center latitude decimal degrees.
      * @param lon   map center longitude decimal degrees.
@@ -996,9 +976,6 @@ public class MainActivity extends Activity {
     /**
      * Starts LocationService with the default 30-second interval and 3600-second
      * rollover.  Called from onCreate() on subsequent launches only.
-     *
-     * Interval defaults to 30_000ms.  The HanselPrefs key is a fossil from an
-     * earlier interval-selector design.  Value will always be 30_000 in practice.
      *
      * TODO: Remove once BootReceiver is implemented (v0.99).
      */

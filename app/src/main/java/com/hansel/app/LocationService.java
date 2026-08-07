@@ -77,8 +77,6 @@ import java.util.Date;
  * standalone headless app.  The WebView UI will become a separate viewer
  * app (Gretel).  That split is post-v1.0.
  *
- * TODO: Add BootReceiver so the service survives a phone reboot without
- *       requiring the user to open the app.
  * TODO: Move consumed hour files to ./backup/ instead of deleting them
  *       in consolidateOldFiles().
  * TODO: Version existing monthly files (slots 61-99) before overwriting
@@ -765,11 +763,6 @@ public class LocationService extends Service {
      * Hansel files are clean and current before the 2pm UTC day boundary
      * rolls over, so there is no risk of a composite straddling a
      * partially-consolidated month file.
-     *
-     * TODO: If the service is started after noon and before midnight,
-     *       the first scheduled noon will be tomorrow.  Files from today
-     *       that age out of the 72h window overnight will not be consolidated
-     *       until tomorrow noon.  Acceptable for now.
      */
     void scheduleNoon() {
         Calendar next = Calendar.getInstance();
