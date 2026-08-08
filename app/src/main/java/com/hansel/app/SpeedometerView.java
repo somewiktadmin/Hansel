@@ -80,8 +80,6 @@ public class SpeedometerView extends View {
                 darkMode = !darkMode;
                 prefs.edit().putBoolean(KEY_DARK, darkMode).apply();
                 applyTheme();
-                borderPaint.setStyle(Paint.Style.STROKE);
-                borderPaint.setStrokeWidth(BORDER_WIDTH_PX);
                 invalidate();
                 return true;
             }
@@ -96,6 +94,8 @@ public class SpeedometerView extends View {
             }
         });
 
+        borderPaint.setStyle(Paint.Style.STROKE);
+        borderPaint.setStrokeWidth(BORDER_WIDTH_PX);
         applyTheme();
     }
 

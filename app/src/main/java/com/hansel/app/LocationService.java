@@ -994,16 +994,16 @@ public class LocationService extends Service {
             String t = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
             double lat = fmtLatLon(loc.getLatitude());
             double lon = fmtLatLon(loc.getLongitude());
-            if (loc.hasSpeed())   lastSpd = loc.getSpeed();
-            if (loc.hasBearing()) lastCrs = loc.getBearing();
+            if (loc.hasSpeed())   lastSpd = Math.round( loc.getSpeed() * 2.23694f ); //eliminate metric when detected
+            lastCrs=0; //if (loc.hasBearing()) lastCrs = loc.getBearing();
 
             JSONObject obj = new JSONObject();
             obj.put("t", t  );
             obj.put("lat", lat );
             obj.put("lon", lon );
             obj.put("alt", Math.round(altFt));
-            obj.put("acc", Math.round(loc.getAccuracy()));
-            obj.put("spd", Math.round(lastSpd * 2.23694f));
+            obj.put("acc", 0); //never worked Math.round(loc.getAccuracy())
+            obj.put("spd", lastSpd);
             obj.put("crs", Math.round(lastCrs));
 
             sendToUI(obj.toString());
