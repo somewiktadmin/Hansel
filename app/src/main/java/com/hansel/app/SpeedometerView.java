@@ -69,7 +69,7 @@ public class SpeedometerView extends View {
     private static final float ONE_FIFTH_FRAC = SIZE_FRACTION_OF_WIDTH; // matches existing v1 default
 
     /** Background alpha (0-255). Text/border stay fully opaque regardless. */
-    private static final int BACKGROUND_ALPHA = 192; // ~75% transparent
+    private static final int BACKGROUND_ALPHA = 64; // ~75% transparent
 
     private static final float MIN_FREE_FRAC = 0.08f;
     private static final float HANDLE_RADIUS_PX = 28f;

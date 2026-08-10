@@ -144,16 +144,23 @@ public class MainActivity extends Activity {
     static final String PREF_MAX_REPLAY_POINTS = "max_replay_points";
     public static int maxReplayPoints = 40000;
 
-    // Startup replay toggles - mutually exclusive, enforced in WebAppInterface setters.
+    /* Startup replay toggles - mutually exclusive, enforced in WebAppInterface setters. */
     static final String PREF_STARTUP_72HR = "startup_72hr";
     static final String PREF_STARTUP_REPLAY = "startup_replay";
     public static boolean startup72hr = true;
     public static boolean startupReplay = false;
 
+    /* This is the timeout when the user moves the map around */
     private static final long PAN_IDLE_TIMEOUT_MS = 300000;
     private static final android.os.Handler panIdleHandler =
             new android.os.Handler(android.os.Looper.getMainLooper());
     private static Runnable panIdleRunnable = null;
+
+    /* This is the timeout when the REPLAY goes astray. */
+    private static final long REPLAY_PAUSED_TIMEOUT_MS = 60000;
+    private static final android.os.Handler replayPausedHandler =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    private static Runnable replayPausedRunnable = null;
 
     public static SpeedometerView speedometerView;
     public static AltimeterView altimeterView;
@@ -761,14 +768,24 @@ public class MainActivity extends Activity {
                 locationOverlay.disableFollowLocation();
 
                 if (btnMe != null) btnMe.setTextColor(Color.BLACK);
-                // [HISTORY REPLAYING] only shown during replay, not during live pan
+
                 if (replayInProgress) {
+                    //If a scroll event happens during replay, human may want it stopped.
                     replayFollowMode = false;
                     liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
                     replayPausedFloatie.setVisibility(View.VISIBLE);
                     webView.post(() ->
                             webView.evaluateJavascript("pauseReplay()", null));
+
+                    //If not caused by human interaction, fire a harmless wakeup 60s from now.
+                    replayPausedRunnable = () -> {
+                        replayFollowMode = true;
+                        replayPausedFloatie.setVisibility(View.GONE);
+                        webView.post(() -> webView.evaluateJavascript("resumeReplay()", null));
+                    };
+                    replayPausedHandler.postDelayed(replayPausedRunnable, REPLAY_PAUSED_TIMEOUT_MS);
                 }
+
                 IGeoPoint gs = mapView.getMapCenter();
                 zoomerZoom = (int) Math.round(mapView.getZoomLevelDouble());
                 zoomerLat = gs.getLatitude();
