@@ -188,7 +188,7 @@ public class WebAppInterface {
      * tree URI stored in HanselPrefs.  Never called - all file access goes
      * through resolveTreeUriToFile() instead.
      *
-     * TODO: Remove once confirmed nothing will revert to SAF access.
+     * TO DON'T: openFile() uses this. Remove once confirmed nothing will revert to SAF access.
      */
     private DocumentFile getTreeDir() {
         SharedPreferences prefs = context.getSharedPreferences(

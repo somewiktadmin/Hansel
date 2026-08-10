@@ -9,6 +9,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.UriPermission;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -695,6 +696,9 @@ public class MainActivity extends Activity {
             say(gpsInfoOverlay.getTypeface().toString());
             if (Build.VERSION.SDK_INT >= 34) {
                 say("hmm pressed ");
+            }
+            for (UriPermission p : getContentResolver().getPersistedUriPermissions()) {
+                say("persisted grant: " + p.getUri() + " write=" + p.isWritePermission());
             }
 
             liveUpdatesPausedFloatie.setVisibility(View.GONE);
