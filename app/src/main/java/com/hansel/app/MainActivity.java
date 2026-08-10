@@ -750,7 +750,7 @@ public class MainActivity extends Activity {
         mapView.addMapListener(new MapListener() {
             @Override
             public boolean onScroll(ScrollEvent event) {
-                say("onScroll fired, programmingScroll=" + programmingScroll);
+                if (!programmingScroll) say("onScroll fired, programmingScroll=" + programmingScroll);
                 if (programmingScroll) {
                     programmingScroll = false;
                     return false;
