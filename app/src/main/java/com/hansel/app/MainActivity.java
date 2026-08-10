@@ -102,6 +102,7 @@ public class MainActivity extends Activity {
     private static final java.util.List<org.osmdroid.views.overlay.Marker>
             replayDots = new java.util.ArrayList<>();
     public static WebView webView;
+    public static MainActivity instance;
     public static org.osmdroid.views.MapView mapView;
 
     //private CompassOverlay compassOverlay;
@@ -519,7 +520,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        say("onCreate starting");
+        instance = this;
+        say("onCreate starting, instance=" + this.toString() );
 
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
@@ -879,6 +881,7 @@ public class MainActivity extends Activity {
 
         //prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         String savedUri = prefs.getString(PREF_TREE_URI, null);
+        say("savedUri=" + savedUri);
 
         if (savedUri == null) {
             // first launch - ask user to pick a folder
@@ -975,6 +978,21 @@ public class MainActivity extends Activity {
              */
             initOsmdroid();
         }
+    }
+
+    /**
+     * Clears the current tree URI, forces the folder picker again, and
+     * (once picked) TODONT: drops a placeholder file so a zero-file folder is
+     * never mistaken for "healthy but empty" again.
+     */
+    public void forceReselectFolder() {
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .edit()
+                .remove(PREF_TREE_URI)
+                .apply();
+        say("Folder appears empty/stale - re-selecting working directory");
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        startActivityForResult(intent, REQUEST_TREE);
     }
 
     /**

@@ -129,6 +129,14 @@ public class LocationService extends Service {
     DocumentFile currentFile;
 
     /**
+     * Raw file count from the last consolidateOldFiles() pass, before any
+     * filtering.  -1 means consolidateOldFiles() has not run yet, or the
+     * tree dir could not be resolved.  A folder that has ever logged
+     * successfully should never legitimately show 0 again.
+     */
+    public int lastConsolidateFileCount = -1;
+
+    /**
      * Hansel logging interval in milliseconds.  Genuinely user-adjustable -
      * see the interval dropdown in index.html, wired through
      * WebAppInterface.setInterval()/getCurrentInterval().
@@ -455,7 +463,8 @@ public class LocationService extends Service {
                 MainActivity.PREFS_NAME, MODE_PRIVATE);
         String uriString = prefs.getString(MainActivity.PREF_TREE_URI, null);
         if (uriString == null) {
-            say("No folder selected - open app to pick one");
+            say("No breadcrumbs folder selected yet.");
+            MainActivity.instance.forceReselectFolder();
             return null;
         }
         return DocumentFile.fromTreeUri(this, Uri.parse(uriString));
@@ -616,6 +625,7 @@ public class LocationService extends Service {
         say("consolidateOldFiles dir=" + dir.getUri().getPath() );
 
         DocumentFile[] files = dir.listFiles();
+        lastConsolidateFileCount = files.length;
         say( "consolidateOldFiles.files= " + Integer.toString(files.length) );
         if (files == null || files.length == 0) return;
 
@@ -841,11 +851,13 @@ public class LocationService extends Service {
             currentFile = dir.createFile("application/x-ndjson", name);
             if (currentFile == null) {
                 say("openFile: createFile returned null");
+                MainActivity.instance.forceReselectFolder();
                 return;
             }
 
             OutputStream os = getContentResolver().openOutputStream(currentFile.getUri(), "w");
             if (os == null) {
+                MainActivity.instance.forceReselectFolder();
                 say("openFile: openOutputStream returned null");
                 return;
             }
