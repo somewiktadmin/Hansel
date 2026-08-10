@@ -156,6 +156,7 @@ public class MainActivity extends Activity {
     private static Runnable panIdleRunnable = null;
 
     public static SpeedometerView speedometerView;
+    public static AltimeterView altimeterView;
 
     /** say() convenience debug method because LOGCAT fails most
      *  of the time on Android Studio Bumblebee. */
@@ -346,6 +347,7 @@ public class MainActivity extends Activity {
         SkyBar.updateSkyOverlay(fixTime.substring(0, 10));
         rebuildGpsInfoOverlay();
         if (speedometerView != null) speedometerView.setSpeed((float) spdMph);
+        if (altimeterView != null) altimeterView.setAltitude((float) altFt);
     }
 
     /**
@@ -569,6 +571,7 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         speedometerView = findViewById(R.id.speedometerView);
+        altimeterView = findViewById(R.id.altimeterView);
 
         webView = findViewById(R.id.webView);
         mapView = findViewById(R.id.mapView);
@@ -747,7 +750,7 @@ public class MainActivity extends Activity {
         mapView.addMapListener(new MapListener() {
             @Override
             public boolean onScroll(ScrollEvent event) {
-                //say("onScroll fired, programmingScroll=" + programmingScroll);
+                say("onScroll fired, programmingScroll=" + programmingScroll);
                 if (programmingScroll) {
                     programmingScroll = false;
                     return false;

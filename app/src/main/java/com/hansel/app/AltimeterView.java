@@ -19,10 +19,10 @@ import android.view.ViewGroup;
 import android.widget.Toast;
 
 /**
- * Self-contained speedometer overlay for Hansel's mapview.
+ * Self-contained altimeter overlay for Hansel's mapview.
  *
  * This class knows nothing about GPS, LocationService, or the map itself -
- * it is fed a speed value via setSpeed() and draws a plain speed readout.
+ * it is fed an altitude value via setAltitude() and draws a plain readout.
  * The intent is that this class (plus its own tiny prefs file) can be
  * lifted into a standalone app later with minimal change - only the
  * container differs (this FrameLayout child today, a WindowManager
@@ -39,18 +39,18 @@ import android.widget.Toast;
  *
  * v2 scope: Move/Resize/Settings menu (native dialogs), resize presets
  * (Full / 2/3 / 1/5 / Free with a drag handle), lock-position setting,
- * MPH/KPH toggle. Settings dialog also exposes the theme toggle as an
+ * M/FT toggle. Settings dialog also exposes the theme toggle as an
  * explicit choice, alongside the tap-to-toggle shortcut - the shortcut
  * is left fully intact.
  */
-public class SpeedometerView extends View {
+public class AltimeterView extends View {
 
-    private static final String PREFS_NAME = "speedometer_prefs";
+    private static final String PREFS_NAME = "altitude_prefs";
     private static final String KEY_X_FRAC = "x_frac";
     private static final String KEY_Y_FRAC = "y_frac";
     private static final String KEY_DARK = "dark_mode";
     private static final String KEY_LOCKED = "locked";
-    private static final String KEY_USE_KPH = "use_kph";
+    private static final String KEY_USE_METERS = "use_feet";
     private static final String KEY_SIZE_MODE = "size_mode";
     private static final String KEY_FREE_W_FRAC = "free_w_frac";
     private static final String KEY_FREE_H_FRAC = "free_h_frac";
@@ -73,20 +73,20 @@ public class SpeedometerView extends View {
 
     private static final float MIN_FREE_FRAC = 0.08f;
     private static final float HANDLE_RADIUS_PX = 28f;
-    private static final float KM_PER_MILE = 1.60934f;
+    private static final float M_PER_FT = 0.3048f;
 
     private final SharedPreferences prefs;
 
     private boolean darkMode;
     private boolean locked;
-    private boolean useKph;
+    private boolean useMeters;
     private SizeMode sizeMode;
     private float freeWFrac;
     private float freeHFrac;
 
     private float xFrac = -1f; // -1 = not yet positioned
     private float yFrac = -1f;
-    private float speedMph = 0f;
+    private float altFt = 0f;
 
     private final Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -110,13 +110,13 @@ public class SpeedometerView extends View {
 
     private final Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
-    public SpeedometerView(Context context, AttributeSet attrs) {
+    public AltimeterView(Context context, AttributeSet attrs) {
         super(context, attrs);
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
 
         darkMode = prefs.getBoolean(KEY_DARK, true);
         locked = prefs.getBoolean(KEY_LOCKED, false);
-        useKph = prefs.getBoolean(KEY_USE_KPH, false);
+        useMeters = prefs.getBoolean(KEY_USE_METERS, false);
         sizeMode = SizeMode.values()[prefs.getInt(KEY_SIZE_MODE, SizeMode.ONE_FIFTH.ordinal())];
         freeWFrac = prefs.getFloat(KEY_FREE_W_FRAC, SIZE_FRACTION_OF_WIDTH);
         freeHFrac = prefs.getFloat(KEY_FREE_H_FRAC, SIZE_FRACTION_OF_WIDTH);
@@ -227,8 +227,8 @@ public class SpeedometerView extends View {
     }
 
     /** Called from MainActivity.updateGpsInfoOverlay() on every GPS fix. */
-    public void setSpeed(float mph) {
-        this.speedMph = mph;
+    public void setAltitude(float ft) {
+        this.altFt = ft;
         invalidate();
     }
 
@@ -238,7 +238,7 @@ public class SpeedometerView extends View {
 
     private void showMainMenu() {
         new AlertDialog.Builder(getContext())
-                .setTitle("Speedometer")
+                .setTitle("Altimeter")
                 .setItems(new CharSequence[]{"Move", "Resize", "Settings"}, (dialog, which) -> {
                     switch (which) {
                         case 0: startMove(); break;
@@ -255,7 +255,7 @@ public class SpeedometerView extends View {
             return;
         }
         moveArmed = true;
-        Toast.makeText(getContext(), "Drag the speedometer to move it", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getContext(), "Drag the altimeter to move it", Toast.LENGTH_SHORT).show();
     }
 
     private void showResizeMenu() {
@@ -274,11 +274,11 @@ public class SpeedometerView extends View {
 
     private void showSettingsMenu() {
         String themeLabel = darkMode ? "Theme: white-on-black (tap to switch)" : "Theme: black-on-white (tap to switch)";
-        String unitLabel = useKph ? "Units: KPH (tap to switch)" : "Units: MPH (tap to switch)";
+        String unitLabel = useMeters ? "Units: Meters (tap to switch)" : "Units: Feet (tap to switch)";
         String lockLabel = locked ? "Unlock position" : "Lock position";
 
         new AlertDialog.Builder(getContext())
-                .setTitle("Speedometer settings")
+                .setTitle("Altimeter settings")
                 .setItems(new CharSequence[]{themeLabel, unitLabel, lockLabel}, (dialog, which) -> {
                     switch (which) {
                         case 0:
@@ -288,8 +288,8 @@ public class SpeedometerView extends View {
                             invalidate();
                             break;
                         case 1:
-                            useKph = !useKph;
-                            prefs.edit().putBoolean(KEY_USE_KPH, useKph).apply();
+                            useMeters = !useMeters;
+                            prefs.edit().putBoolean(KEY_USE_METERS, useMeters).apply();
                             invalidate();
                             break;
                         case 2:
@@ -446,13 +446,13 @@ public class SpeedometerView extends View {
         canvas.drawRoundRect(half, half, w - half, h - half,
                 CORNER_RADIUS_PX, CORNER_RADIUS_PX, borderPaint);
 
-        float displaySpeed = useKph ? speedMph * KM_PER_MILE : speedMph;
-        String unitLabel = useKph ? "KPH" : "MPH";
+        float displayAlt = useMeters ? altFt * M_PER_FT : altFt;
+        String unitLabel = useMeters ? "m" : "'"; // corrected from "M" and "FT"
 
         textPaint.setTextSize(h * 0.4f);
-        canvas.drawText(String.valueOf(Math.round(displaySpeed)), w / 2f, h * 0.55f, textPaint);
-        textPaint.setTextSize(h * 0.14f);
-        canvas.drawText(unitLabel, w / 2f, h * 0.78f, textPaint);
+        canvas.drawText(String.valueOf(Math.round(displayAlt)) + unitLabel, w / 2f, h * 0.55f, textPaint);
+        //textPaint.setTextSize(h * 0.14f);
+        //canvas.drawText(unitLabel, w / 2f, h * 0.78f, textPaint);
 
         if (resizingFree) {
             canvas.drawCircle(w, h, HANDLE_RADIUS_PX, handlePaint);
