@@ -57,8 +57,8 @@ public class AltimeterView extends View {
 
     private static final float RESET_MARGIN_PX = 50f;
     private static final float MAX_OFFSCREEN_FRACTION = 0.9f;
-    private static final float SIZE_FRACTION_OF_WIDTH = 0.15f;
-    private static final int FALLBACK_SIZE_PX = 180; // only used if parent width isn't known yet
+    private static final float SIZE_FRACTION_OF_WIDTH = 0.30f;
+    private static final int FALLBACK_SIZE_PX = 360; // only used if parent width isn't known yet
 
     /** Resize presets. FREE uses freeWFrac/freeHFrac instead of a fixed fraction. */
     private enum SizeMode { FULL, TWO_THIRDS, ONE_FIFTH, FREE }
@@ -375,7 +375,7 @@ public class AltimeterView extends View {
 
         // ONE_FIFTH and FREE: normal persisted/draggable position.
         if (xFrac < 0 || yFrac < 0) {
-            float left = RESET_MARGIN_PX;
+            float left = RESET_MARGIN_PX + getWidth();
             float top = parent.getHeight() - getHeight() - RESET_MARGIN_PX;
             moveTo(left, top);
             savePosition();
