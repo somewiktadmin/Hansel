@@ -449,8 +449,8 @@ public class AltimeterView extends View {
         float displayAlt = useMeters ? altFt * M_PER_FT : altFt;
         String unitLabel = useMeters ? "m" : "'"; // corrected from "M" and "FT"
 
-        textPaint.setTextSize(h * 0.4f);
-        canvas.drawText(String.valueOf(Math.round(displayAlt)) + unitLabel, w / 2f, h * 0.55f, textPaint);
+        textPaint.setTextSize(h * 0.5f);
+        canvas.drawText(String.valueOf(Math.round(displayAlt)) + unitLabel, w / 2f, h * 0.7f, textPaint);
         //textPaint.setTextSize(h * 0.14f);
         //canvas.drawText(unitLabel, w / 2f, h * 0.78f, textPaint);
 
