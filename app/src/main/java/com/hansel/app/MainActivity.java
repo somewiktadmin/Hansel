@@ -296,8 +296,8 @@ public class MainActivity extends Activity {
                 replayHeadMarker.setPosition(pt);
 
                 if ( replayFollowMode && replayIsNearby(pt) ) {
-                    say("handleReplayPoint rfm and isnearby, programmingScroll=" + programmingScroll);
-                    programmingScroll = true;
+                    //say("handleReplayPoint rfm and isnearby, programmingScroll=" + programmingScroll);
+                    //programmingScroll = true;
                     //mapView.getController().animateTo(pt);
                     mapView.getController().setCenter(pt);
                 }
