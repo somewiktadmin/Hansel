@@ -55,7 +55,7 @@ public class SpeedometerView extends View {
     private static final String KEY_FREE_W_FRAC = "free_w_frac";
     private static final String KEY_FREE_H_FRAC = "free_h_frac";
 
-    private static final float RESET_MARGIN_PX = 50f;
+    private static final float RESET_MARGIN_PX = 60f;
     private static final float MAX_OFFSCREEN_FRACTION = 0.9f;
     private static final float SIZE_FRACTION_OF_WIDTH = 0.15f;
     private static final int FALLBACK_SIZE_PX = 180; // only used if parent width isn't known yet
@@ -237,13 +237,33 @@ public class SpeedometerView extends View {
     // ============
 
     private void showMainMenu() {
+        String themeLabel = darkMode ? "Theme: white-on-black (tap to switch)" : "Theme: black-on-white (tap to switch)";
+        String unitLabel = useKph ? "Units: KPH (tap to switch)" : "Units: MPH (tap to switch)";
+        String lockLabel = locked ? "Unlock position" : "Lock position";
+
         new AlertDialog.Builder(getContext())
                 .setTitle("Speedometer")
-                .setItems(new CharSequence[]{"Move", "Resize", "Settings"}, (dialog, which) -> {
+                .setItems(new CharSequence[]{themeLabel, "Move", "Resize", lockLabel, unitLabel, "Reset to default"}, (dialog, which) -> {
                     switch (which) {
-                        case 0: startMove(); break;
-                        case 1: showResizeMenu(); break;
-                        case 2: showSettingsMenu(); break;
+                        case 0:
+                            darkMode = !darkMode;
+                            prefs.edit().putBoolean(KEY_DARK, darkMode).apply();
+                            applyTheme();
+                            invalidate();
+                            break;
+                        case 1: startMove(); break;
+                        case 2: showResizeMenu(); break;
+                        case 3:
+                            locked = !locked;
+                            prefs.edit().putBoolean(KEY_LOCKED, locked).apply();
+                            Toast.makeText(getContext(), locked ? "Position locked" : "Position unlocked", Toast.LENGTH_SHORT).show();
+                            break;
+                        case 4:
+                            useKph = !useKph;
+                            prefs.edit().putBoolean(KEY_USE_KPH, useKph).apply();
+                            invalidate();
+                            break;
+                        case 5: resetToDefault(); break;
                     }
                 })
                 .show();
@@ -272,34 +292,13 @@ public class SpeedometerView extends View {
                 .show();
     }
 
-    private void showSettingsMenu() {
-        String themeLabel = darkMode ? "Theme: white-on-black (tap to switch)" : "Theme: black-on-white (tap to switch)";
-        String unitLabel = useKph ? "Units: KPH (tap to switch)" : "Units: MPH (tap to switch)";
-        String lockLabel = locked ? "Unlock position" : "Lock position";
-
-        new AlertDialog.Builder(getContext())
-                .setTitle("Speedometer settings")
-                .setItems(new CharSequence[]{themeLabel, unitLabel, lockLabel}, (dialog, which) -> {
-                    switch (which) {
-                        case 0:
-                            darkMode = !darkMode;
-                            prefs.edit().putBoolean(KEY_DARK, darkMode).apply();
-                            applyTheme();
-                            invalidate();
-                            break;
-                        case 1:
-                            useKph = !useKph;
-                            prefs.edit().putBoolean(KEY_USE_KPH, useKph).apply();
-                            invalidate();
-                            break;
-                        case 2:
-                            locked = !locked;
-                            prefs.edit().putBoolean(KEY_LOCKED, locked).apply();
-                            Toast.makeText(getContext(), locked ? "Position locked" : "Position unlocked", Toast.LENGTH_SHORT).show();
-                            break;
-                    }
-                })
-                .show();
+    private void resetToDefault() {
+        sizeMode = SizeMode.ONE_FIFTH;
+        prefs.edit().putInt(KEY_SIZE_MODE, sizeMode.ordinal()).apply();
+        xFrac = -1f;
+        yFrac = -1f;
+        requestLayout();
+        post(this::applySavedOrDefaultPosition);
     }
 
     // ============
