@@ -297,7 +297,7 @@ public class MainActivity extends Activity {
 
                 if ( replayFollowMode && replayIsNearby(pt) ) {
                     //say("handleReplayPoint rfm and isnearby, programmingScroll=" + programmingScroll);
-                    //programmingScroll = true;
+                    programmingScroll = true;
                     //mapView.getController().animateTo(pt);
                     mapView.getController().setCenter(pt);
                 }
@@ -761,7 +761,7 @@ public class MainActivity extends Activity {
         mapView.addMapListener(new MapListener() {
             @Override
             public boolean onScroll(ScrollEvent event) {
-                if (!programmingScroll) say("onScroll fired, programmingScroll=" + programmingScroll);
+                ///if (!programmingScroll) say("onScroll fired, programmingScroll=" + programmingScroll);
                 if (programmingScroll) {
                     programmingScroll = false;
                     return false;
@@ -810,7 +810,7 @@ public class MainActivity extends Activity {
                         replayFollowMode = true;
                         replayPausedFloatie.setVisibility(View.GONE);
                         webView.post(() -> webView.evaluateJavascript("resumeReplay()", null));
-                        //say("panIdleRunnable called webview resumeReplay()");
+                        say("panIdleRunnable called webview resumeReplay()");
                     } else {
                         resumeLive();
                         say("panIdleRunnable snapped back, called resumeLive()");
