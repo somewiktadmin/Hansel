@@ -1181,10 +1181,6 @@ public class LocationService extends Service {
      * which matters when you are standing on a lava field and cannot
      * easily read the screen.
      *
-     * TODO: Remove the Toast - say() is sufficient and consistent with the
-     *       rest of the codebase.  The Toast was a debugging remnant from
-     *       before say() was reliable.
-     *
      * @return a human-readable summary string naming the closed file,
      *         for the caller to display or log as needed.
      */
@@ -1205,12 +1201,10 @@ public class LocationService extends Service {
                     "\n(Logging stopped)";
 
             say(msg);
-            Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
             return msg;
 
         } catch (Exception e) {
             say("Stop error: " + e.getMessage());
-            Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
             return "Stop error: " + e.getMessage();
         }
     }
@@ -1232,21 +1226,11 @@ public class LocationService extends Service {
      * It is now just a bonus.
      *
      * If ACCESS_FINE_LOCATION is not granted, the method bails with a
-     * say() and a Toast.  In practice this should never happen since the
+     * say().  In practice this should never happen since the
      * permission is granted manually at sideload time, but the check is
      * required by the Android API regardless.
-     *
-     * TODO: When BootReceiver is implemented, confirm that startGPS() is
-     *       not called before the permission check in MainActivity has
-     *       had a chance to run on a fresh install.
      */
     void startGPS() {
-        /*
-        LocationRequest req = LocationRequest.create()
-                .setInterval(interval)
-                .setFastestInterval(interval)
-                .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        */
 
         LocationRequest req = new LocationRequest.Builder(
                 Priority.PRIORITY_HIGH_ACCURACY, interval)
