@@ -167,7 +167,7 @@ public class MainActivity extends Activity {
 
     /** say() convenience debug method because LOGCAT fails most
      *  of the time on Android Studio Bumblebee. */
-    public void say(String something) { LocationService.say(something, "mainAct."); }
+    public static void say(String something) { LocationService.say(something, "mainAct."); }
 
     /**
      * The drawableDot is a BREADCRUMB visually, as this whole project is named for
@@ -191,11 +191,14 @@ public class MainActivity extends Activity {
     // Replay is stopped by setting replayInProgress=false only; the JS
     // replay interval will exhaust naturally or be stopped separately.
     public static void resumeLive() {
+        say("resumeLive rip=" + replayInProgress
+                + " rfm=" + replayFollowMode + " lfm=" + liveFollowMode);
+
         if (replayInProgress) {
             webView.post(() -> webView.evaluateJavascript("pauseReplay()", null));
         }
         replayInProgress = false;
-        replayFollowMode = true;
+        replayFollowMode = false;
         liveFollowMode = true;
         btnMe.setTextColor(Color.GREEN);
         liveUpdatesPausedFloatie.setVisibility(View.GONE);
@@ -293,6 +296,7 @@ public class MainActivity extends Activity {
                 replayHeadMarker.setPosition(pt);
 
                 if ( replayFollowMode && replayIsNearby(pt) ) {
+                    say("handleReplayPoint rfm and isnearby, programmingScroll=" + programmingScroll);
                     programmingScroll = true;
                     //mapView.getController().animateTo(pt);
                     mapView.getController().setCenter(pt);
