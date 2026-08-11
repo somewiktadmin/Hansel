@@ -45,6 +45,8 @@ import java.io.File;
 /**
  * Hansel v0.988 main activity.
  *
+ * TODO: Add a SETTINGS panel in java not javascript.
+ *
  * TODO: within Kilauea caldera, display all rim altitudes that I have measured, in
  *       the last 3 days, 7 days, 14 days, 21 days, 31 days, 90 days, 365, or all.
  * TODO: figure out how to cartoon-caption these altitudes with cartoon triangle-arrows
@@ -52,6 +54,7 @@ import java.io.File;
  * TODO: Additionally, show those altitude's relative height from the north vent height, and
  *       while at it, the distance to the north vent
  * TODO: Rewrite this Javadoc block once OSMDroid integration and replay are stable.
+ * TODO: Migrate WebView stuff to MapView, like altitude graph.
  *
 
  ===========================================================================
@@ -186,10 +189,13 @@ public class MainActivity extends Activity {
         return replayDotDrawable;
     }
 
-    // resumeLive: re-enable live map following.  Does NOT touch log files,
-    // does NOT call JS stop() - that caused log rotation on every pan.
-    // Replay is stopped by setting replayInProgress=false only; the JS
-    // replay interval will exhaust naturally or be stopped separately.
+    /**
+     * Re-enable live map following.  Does NOT touch log files,
+     * does NOT call JS stop() - that caused log rotation on every pan.
+     *
+     * Replay is stopped by setting replayInProgress=false only; the JS
+     * replay interval will exhaust naturally or be stopped separately.
+     */
     public static void resumeLive() {
         say("resumeLive rip=" + replayInProgress
                 + " rfm=" + replayFollowMode + " lfm=" + liveFollowMode);
@@ -214,7 +220,7 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * "Don't jump when not nearby"
+     * "Don't jump (across the island) when not nearby"
      *
      * Returns true if the last 2 replay points are "nearby" the given point -
      * defined as matching truncated lat and lon to 3 decimal places.
@@ -823,11 +829,11 @@ public class MainActivity extends Activity {
             }
 
             /**
-             * DESIGN CHOICE, not dead code: zoom never clears liveFollowMode
+             * DESIGN CHOICE: zoom never clears liveFollowMode
              * nor replayFollowMode, and never pauses replay.
              *
              * Panning (onScroll) means the user wants to look somewhere else,
-             * so it breaks follow.  Zooming in/out is not that - the user is
+             * so it breaks "follow."  Zooming in/out is not that - the user is
              * still watching the same subject (live position or replay dot),
              * just closer or further away.  Whatever was being followed
              * before the zoom is still being followed after it.
@@ -837,41 +843,16 @@ public class MainActivity extends Activity {
              * never needs to be gated behind ME/HMM/floatie taps the way
              * follow-breaking actions do.
              *
-             * The block below is the old onScroll-style handling, kept only
-             * as a record of the alternative that was considered and
-             * rejected.  Do not revive it - see comment above.
+             * The old code only a record of the alternative that
+             * was considered and rejected.  Do not revive it from git.
              */
             @Override
             public boolean onZoom(ZoomEvent event) {
                 return false;
-                // zoom in or out is not the same as panning around
-                /*
-                liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
-                liveFollowMode = false;
-                if (btnMe != null) btnMe.setTextColor(Color.WHITE);
-                if (replayInProgress) {
-                    replayFollowMode = false;
-                    liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
-                    replayPausedFloatie.setVisibility(View.VISIBLE);
-                }
-                IGeoPoint gs = mapView.getMapCenter();
-                zoomerZoom = (int) Math.round(mapView.getZoomLevelDouble());
-                zoomerLat  = gs.getLatitude();
-                zoomerLon  = gs.getLongitude();
-                //zoomerAlt  = 0;
-                rebuildGpsInfoOverlay();
-                return false;
-                */
             }
-        });
 
+        }); //end of mapView
 
-        /*
-        compassOverlay = new CompassOverlay(
-                this, new InternalCompassOrientationProvider(this), mapView);
-        compassOverlay.enableCompass();
-        mapView.getOverlays().add(compassOverlay);
-         */
 
         // replay overlays - added to map but empty until replay starts
 
@@ -1008,6 +989,8 @@ public class MainActivity extends Activity {
      * Clears the current tree URI, forces the folder picker again, and
      * (once picked) TODONT: drops a placeholder file so a zero-file folder is
      * never mistaken for "healthy but empty" again.
+     *
+     * TODO: make UI button for forceReselectFolder()
      */
     public void forceReselectFolder() {
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
@@ -1019,18 +1002,4 @@ public class MainActivity extends Activity {
         startActivityForResult(intent, REQUEST_TREE);
     }
 
-    /**
-     * Starts LocationService with the default 30-second interval and 3600-second
-     * rollover.  Called from onCreate() on subsequent launches only.
-     *
-     * TODO: Remove once BootReceiver is implemented (v0.99).
-     */
-    private void startLoggingDefault() {
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        int interval = prefs.getInt("last_interval", 5000); //30_000 30000
-        Intent i = new Intent(this, LocationService.class);
-        i.putExtra("interval", interval);
-        i.putExtra("rollover", 3600);
-        ContextCompat.startForegroundService(this, i);
-    }
 }

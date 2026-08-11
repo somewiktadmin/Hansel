@@ -840,9 +840,9 @@ public class LocationService extends Service {
                 writer = null;
             }
 
-            //TODO: we're supposed to ask for a new directory here, if null?
             DocumentFile dir = getTreeDir();
-            if (dir == null) return;
+            if (dir == null) MainActivity.instance.forceReselectFolder();
+            if (dir == null) return; // if still null, oh wait, different thread.
 
             //This is my format.  Don't EVAR default to currentimestampmillis
             String name = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss")
@@ -871,10 +871,7 @@ public class LocationService extends Service {
             //               yyyy-MM-dd_HH (no minutes, no seconds)
             currentHourKey = getHourKey( System.currentTimeMillis() );
 
-            //say("Logging to: " + currentFile.getUri().toString());
-            //Toast.makeText(this, "Logging to: " + currentFile.getUri().toString(), Toast.LENGTH_LONG).show();
-            say("Logging to: " + name);
-            //Toast.makeText(this, "Logging to: " + name, Toast.LENGTH_LONG).show();
+            say("openFile logging to: " + name);
 
         } catch (Exception e) {
             e.printStackTrace();
