@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-    Hansel GPS breadcrumb logger - v0.987
+    Hansel GPS breadcrumb logger - v0.988
     Copyright (C) 2026 GrimmsTales
     GNU General Public License v3 - https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -42,9 +42,7 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
     yyyy-MM-dd_HH-mm-ss strings from the device clock, which is HST.
     Never UTC.  Never assume UTC.  Never convert to UTC.  HST.
 
-    map.png is a static background image of the Kilauea summit area,
-    bundled as an Android asset alongside this file.  It is 2019-era.
-    OSM tile-based map is the replacement, on top 3/5ths of window, while
+    OSM tile-based map is on top 3/5ths of window, while
     this legacy WebView gets the bottom 2/5ths.
 
     Sound buttons: case is significant.  "chuff", "CHUFF", and "Chuff"
@@ -99,7 +97,7 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
 </head>
 
 <body><!-- if I keep this, it will go into a titlebar of a window or similar.
-<h2 title="Hansel-app logs paths. Gretel-app listens.">Hansel - notes v0.987</h2>
+<h2 title="Hansel-app logs paths. Gretel-app listens.">Hansel - notes v0.988</h2>
 -->
 
 <div id="status">Idle</div>
@@ -114,8 +112,6 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
 <button class="sound-btn" onclick="resetTo250()">
     Reset to +-250
 </button>
-
-<canvas height="350" id="map" width="350"></canvas>
 
 <button onclick="start()">START()</button>
 <button onclick="stop()">STOP()</button>
@@ -190,7 +186,7 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
 <button onclick="replay72h()">72hr</button>
 
 <script>
-            const HANSEL_VERSION = "0.987";
+            const HANSEL_VERSION = "0.988";
 
             // say() is defined first, before everything else, so that any
             // code anywhere in this file can call it safely.  During early
@@ -247,20 +243,17 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
             let replayIndex = 0;    // was i, now module-level
             let replaySpeed = 1;    // was local, now module-level
 
-            const map = document.getElementById("map");
-            const mctx = map.getContext("2d");
             const graph = document.getElementById("graph");
             const gctx = graph.getContext("2d");
             const img = new Image();
 
             // Map image bounds around the Kilauea north vent area.
-            // Adjust if map.png is ever replaced.
-            let bounds = {
-                latMin: 19.37,
-                latMax: 19.45,
-                lonMin: -155.33,
-                lonMax: -155.25,
-            };
+            // let bounds = {
+            //     latMin: 19.37,
+            //     latMax: 19.45,
+            //     lonMin: -155.33,
+            //     lonMax: -155.25,
+            // };
 
             //
             // main() - called once from window.addEventListener("load").
@@ -272,20 +265,9 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
             // is parsed and laid out, so clientWidth is real by the time
             // main() runs.  initCanvases() therefore always gets valid
             // dimensions, and img.onload fires into a properly sized canvas.
-            // start() previously called drawMap() as a band-aid that worked
-            // roughly half the time depending on image cache state.  Gone.
             //
             function main() {
                 initCanvases();
-
-                img.onload = function () {
-                    say("map.png loaded, size: " + img.width + " x " + img.height);
-                    drawMap();
-                };
-                img.onerror = function () {
-                    say("map.png FAILED TO LOAD");
-                };
-                img.src = "map.png";
 
                 loadSounds();
                 rebuildButtons();
@@ -311,16 +293,14 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
             }
 
             /**
-             * Sizes the map and graph canvases from real layout dimensions.
+             * Sizes the graph canvas from real layout dimensions.
              * Must be called after layout is complete (i.e. from main()).
              * The || 350 fallback matches the HTML attribute default and
              * prevents a zero-dimension canvas if something goes wrong.
              */
             function initCanvases() {
-                map.width = map.clientWidth || 350;
-                map.height = map.width;
                 graph.width = graph.clientWidth || 350;
-                say("canvas init: map=" + map.width + " graph=" + graph.width);
+                say("canvas init: graph=" + graph.width);
             }
 
             /**
@@ -610,55 +590,6 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
             }
 
             /**
-             * Returns a CSS color string based on GPS accuracy value.
-             * Green = good fix, red = poor fix.
-             * acc is retained as a visual indicator only - it is not a
-             * reliable data quality metric.  See LocationService acc field
-             * comments for the full warning.
-             */
-            function color(acc) {
-                if (acc < 5)  return "#00ff00";
-                if (acc < 10) return "#88ff00";
-                if (acc < 20) return "#ffff00";
-                if (acc < 50) return "#ff8800";
-                return "#ff0000";
-            }
-
-            /**
-             * Draws the map canvas: static background image plus all current
-             * points as colored dots.  Called from img.onload at startup and
-             * on every incoming GPS point.
-             * The background image is map.png, a static 2019-era raster of
-             * the Kilauea summit area.  OSM tile replacement is pending.
-             */
-            function drawMap() {
-                if (img.complete) {
-                    mctx.drawImage(img, 0, 0, map.width, map.height);
-                }
-                for (let p of points) {
-                    let xy = latLonToXY(p.lat, p.lon);
-                    mctx.fillStyle = color(p.acc);
-                    mctx.beginPath();
-                    mctx.arc(xy.x, xy.y, 2, 0, Math.PI * 2);
-                    mctx.fill();
-                }
-            }
-
-            /**
-             * Projects a lat/lon coordinate onto the map canvas pixel space
-             * using the bounds rectangle defined above.
-             */
-            function latLonToXY(lat, lon) {
-                let x =
-                    ((lon - bounds.lonMin) / (bounds.lonMax - bounds.lonMin)) *
-                    map.width;
-                let y =
-                    ((bounds.latMax - lat) / (bounds.latMax - bounds.latMin)) *
-                    map.height;
-                return { x, y };
-            }
-
-            /**
              * Draws the altitude graph for the last 100 points.
              * Scale is quantized to 500ft buckets and only ever expands,
              * never shrinks - a sudden altitude spike does not compress the
@@ -841,7 +772,7 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
              * Receives a GPS fix from LocationService via evaluateJavascript().
              * Ignored during replay.  Parses the JSON, formats coordinates,
              * updates the points array (1500 point cap), updates the UI,
-             * and redraws the map and graph.
+             * and redraws the graph.
              *
              * Non-trackpoint lines (no "t" field) - such as say() messages
              * forwarded from Java - are pushed to logLines raw without formatting.
@@ -876,7 +807,6 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
                 if (points.length > 1500) points.shift();
 
                 updateUI(d);
-                drawMap();
                 drawGraph();
             }
 
@@ -965,7 +895,6 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
                 d.ventDist = vent.log;
                 if (points.length > 1500) points.shift();
                 updateUI(d);
-                drawMap();
                 drawGraph();
                 AndroidBridge.replayPoint(JSON.stringify(d));
             }
@@ -1110,8 +1039,6 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
                     AndroidBridge.replayStarting();
                     startReplayInterval();
                 }
-
-
 
 
             // Entry point.  Everything that touches the DOM or depends on

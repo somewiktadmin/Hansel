@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme for Hansel-v0.987. -->
+    <!-- Base application theme for Hansel-v0.988. -->
     <style name="Theme.Hansel" parent="Theme.AppCompat.NoActionBar">
         <item name="fontFamily">@font/courier_prime_regular</item>
         <!-- Primary brand color. -->

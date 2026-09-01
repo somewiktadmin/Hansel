@@ -16,7 +16,7 @@ import os
 import time
 import urllib.request
 
-USER_AGENT = "Hansel/0.987 personal field logger - single user, Kilauea HI"
+USER_AGENT = "Hansel/0.988 personal field logger - single user, Kilauea HI"
 ZOOM_LEVELS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
 GRID = 5  # 5x5 = 25 tiles per zoom level
 CENTER_LAT = 19.402
