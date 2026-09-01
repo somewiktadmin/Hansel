@@ -100,10 +100,16 @@ public class MainActivity extends Activity {
     private static final int REQUEST_SPOOL = 1096;
     // breadcrumb dot color - toasted white bread gold
     private static final int REPLAY_DOT_COLOR = 0xFFD4A017;
-    private static final int MAX_REPLAY_POINTS = 525000;
+    private static final int MAX_REPLAY_POINTS = 55000; //match javascript
     // tracks all breadcrumb dot markers for pruning and clearing
     private static final java.util.List<org.osmdroid.views.overlay.Marker>
             replayDots = new java.util.ArrayList<>();
+    // tracks 4dp-truncated "lat,lon" keys already plotted, to skip re-plotting duplicates
+    private static final java.util.Set<String>
+            replayDotKeys = new java.util.HashSet<>();
+    private static int replayDotSkipCount = 0;
+
+    //The biggies ===================================
     public static WebView webView;
     public static MainActivity instance;
     public static org.osmdroid.views.MapView mapView;
@@ -145,7 +151,7 @@ public class MainActivity extends Activity {
     private static android.graphics.drawable.Drawable replayDotDrawable = null;
 
     static final String PREF_MAX_REPLAY_POINTS = "max_replay_points";
-    public static int maxReplayPoints = 40000;
+    public static int maxReplayPoints = 55000; //match javascript
 
     /* Startup replay toggles - mutually exclusive, enforced in WebAppInterface setters. */
     static final String PREF_STARTUP_72HR = "startup_72hr";
@@ -247,6 +253,12 @@ public class MainActivity extends Activity {
         return Long.toString(shifted);
     }
 
+    /** truncate lat,lon values to four decimal places without rounding */
+    private static String truncate4(double v) {
+        long shifted = (long) (v * 10000);
+        return Long.toString(shifted);
+    }
+
     /*
      * Syncs the zoom slider thumb to the current map zoom level.
      * No-op while the user is actively dragging the slider (sliderTracking == true)
@@ -282,21 +294,34 @@ public class MainActivity extends Activity {
                 GeoPoint pt = new GeoPoint(lat, lon);
 
                 // plot breadcrumb dot
-                org.osmdroid.views.overlay.Marker dot =
-                        new org.osmdroid.views.overlay.Marker(mapView);
-                dot.setPosition(pt);
-                dot.setAnchor(
-                        org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
-                        org.osmdroid.views.overlay.Marker.ANCHOR_CENTER);
-                dot.setIcon(getReplayDot());
-                dot.setTitle("");
-                mapView.getOverlays().add(dot);
-                replayDots.add(dot);
+                String dotKey = truncate4(lat) + "," + truncate4(lon);
+                if (!replayDotKeys.contains(dotKey)) {
+                    org.osmdroid.views.overlay.Marker dot =
+                            new org.osmdroid.views.overlay.Marker(mapView);
+                    dot.setPosition(pt);
+                    dot.setAnchor(
+                            org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
+                            org.osmdroid.views.overlay.Marker.ANCHOR_CENTER);
+                    dot.setIcon(getReplayDot());
+                    dot.setTitle("");
+                    mapView.getOverlays().add(dot);
+                    replayDots.add(dot);
+                    replayDotKeys.add(dotKey);
 
-                // prune oldest dot if over limit
-                if (replayDots.size() > maxReplayPoints) {
-                    org.osmdroid.views.overlay.Marker oldest = replayDots.remove(0);
-                    mapView.getOverlays().remove(oldest);
+                    //  prune oldest dot if over limit
+                    /* if (replayDots.size() > maxReplayPoints) {
+                        org.osmdroid.views.overlay.Marker oldest = replayDots.remove(0);
+                        mapView.getOverlays().remove(oldest);
+                        String oldestKey = truncate4(oldest.getPosition().getLatitude())
+                                   + "," + truncate4(oldest.getPosition().getLongitude());
+                        replayDotKeys.remove(oldestKey);
+                    } */
+                } else {
+                    replayDotSkipCount++;
+                    if (replayDotSkipCount % 1000 == 0) {
+                        android.util.Log.d("Hansel", "replay dot dedup: skipped "
+                                + replayDotSkipCount + " duplicate plots");
+                    }
                 }
 
                 replayHeadMarker.setPosition(pt);
@@ -332,6 +357,8 @@ public class MainActivity extends Activity {
             mapView.getOverlays().remove(dot);
         }
         replayDots.clear();
+        replayDotKeys.clear();
+        replayDotSkipCount = 0;
         liveFollowMode = true;
         mapView.invalidate();
     }
@@ -580,7 +607,7 @@ public class MainActivity extends Activity {
 
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         int interval = prefs.getInt("last_interval", 5000); //30_000 30000
-        maxReplayPoints = prefs.getInt(PREF_MAX_REPLAY_POINTS, 40000);
+        maxReplayPoints = prefs.getInt(PREF_MAX_REPLAY_POINTS, 55000); // match javascript
 
         startup72hr = prefs.getBoolean(PREF_STARTUP_72HR, true);
         startupReplay = prefs.getBoolean(PREF_STARTUP_REPLAY, false);
@@ -781,11 +808,13 @@ public class MainActivity extends Activity {
 
                 if (replayInProgress) {
                     //If a scroll event happens during replay, human may want it stopped.
+                    /* geddafuckouddahere - this is only reached when AUTOMATED replay is in progress, wtfffffff
                     replayFollowMode = false;
                     liveUpdatesPausedFloatie.setVisibility(View.VISIBLE);
                     replayPausedFloatie.setVisibility(View.VISIBLE);
                     webView.post(() ->
                             webView.evaluateJavascript("pauseReplay()", null));
+                     */
 
                     //If not caused by human interaction, fire a harmless wakeup 60s from now.
                     replayPausedRunnable = () -> {
