@@ -644,6 +644,8 @@ public class MainActivity extends Activity {
 
         skyBarBox = findViewById(R.id.skyBarBox);
         skyBarBox.setShadowLayer(2f, 1f, 1f, 0xFF000000);
+        skyBarBox.setOnClickListener(v -> SkyBar.toggleSkyBarExpanded());
+        skyBarBox.setMovementMethod(new android.text.method.ScrollingMovementMethod());
 
         //Typeface courierPrime = getResources().getFont(R.font.courier_prime_regular);
         //Typeface courierPrime = Typeface.createFromAsset(getAssets(), "courier_prime_regular.ttf");

@@ -28,7 +28,7 @@ public class MainActivityTest {
             int dayOfYear = SkyBar.dayOfYear(2026, 6, 14);
             String sun = String.valueOf(SkyBar.sunriseSunsetMinutes(  lat,  dayOfYear )[0]);
 
-            int suni = 0;//Integer.parseInt( sun.substring(3, 5) );
+            int suni = 0; //Integer.parseInt( sun.substring(3, 5) );
 
             assertEquals(
                     "Sunrise is expected to be quantized \n" + sun +"\n",

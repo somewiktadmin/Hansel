@@ -56,9 +56,9 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
     icon to reorder and/or delete items?
 -->
 <html>
-<head>
-    <meta content="width=device-width, initial-scale=1" name="viewport" />
-    <style>
+    <head>
+        <meta content="width=device-width, initial-scale=1" name="viewport" />
+        <style>
             body {
                 font-family: sans-serif;
                 background: #111;
@@ -94,78 +94,78 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
                 height: auto;
             }
         </style>
-</head>
+    </head>
 
 <body><!-- if I keep this, it will go into a titlebar of a window or similar.
 <h2 title="Hansel-app logs paths. Gretel-app listens.">Hansel - notes v0.988</h2>
 -->
 
-<div id="status">Idle</div>
-<pre id="readout">Waiting...</pre>
+        <div id="status">Idle</div>
+        <pre id="readout">Waiting...</pre>
 
-<canvas height="250" id="graph" width="350"></canvas>
-<div id="graphScale" style="font-size: 12px; color: #888"></div>
+        <canvas height="250" id="graph" width="350"></canvas>
+        <div id="graphScale" style="font-size: 12px; color: #888"></div>
 
-<button class="sound-btn" onclick="resetToKilauea()">
-    Reset to Kilauea
-</button>
+        <button class="sound-btn" onclick="resetToKilauea()">
+            Reset to Kilauea
+        </button>
 <button class="sound-btn" onclick="resetTo250()">
     Reset to +-250
 </button>
 
-<button onclick="start()">START()</button>
-<button onclick="stop()">STOP()</button>
-<button onclick="AndroidBridge.consolidateNow()">Rollup</button>
+        <button onclick="start()">START()</button>
+        <button onclick="stop()">STOP()</button>
+        <button onclick="AndroidBridge.consolidateNow()">Rollup</button>
 
-<button onclick="mark()">MARK ME</button>
-<button onclick="mark(TODO)">MARK MAP</button>
+        <button onclick="mark()">MARK ME</button>
+        <button onclick="mark(TODO)">MARK MAP</button>
 
-<div id="soundPanel"></div>
+        <div id="soundPanel"></div>
 
-<input
-        id="newSound"
-        placeholder="Add new sound..."
-        style="width: 90%; font-size: 16px; padding: 6px"
-/>
-<button onclick="addSound()">Add</button>
-
-<div style="margin-top: 10px">
-    <input
-            id="noteInput"
-            placeholder="Add a one-time note..."
+        <input
+            id="newSound"
+            placeholder="Add new sound..."
             style="width: 90%; font-size: 16px; padding: 6px"
-    />
-    <button onclick="submitNote()">Add</button>
-</div>
+        />
+        <button onclick="addSound()">Add</button>
 
-<div id="status2">Idle</div>
+        <div style="margin-top: 10px">
+            <input
+                id="noteInput"
+                placeholder="Add a one-time note..."
+                style="width: 90%; font-size: 16px; padding: 6px"
+            />
+            <button onclick="submitNote()">Add</button>
+        </div>
 
-<textarea
-        id="logView"
-        rows="12"
-        style="width: 99%; background: #000; color: #0f0; font-size: 10px"
-></textarea>
+        <div id="status2">Idle</div>
 
-<label>Sample Interval</label>
-<select id="interval" onchange="AndroidBridge.setInterval(this.value)">
-    <option value="1000">1 sec</option>
-    <option selected value="5000">5 sec</option>
-    <option value="15000">15 sec</option>
-    <option value="30000">30 sec</option>
-    <option value="60000">60 sec</option>
-    <option value="300000">5 min</option>
-    <option value="3600000">1 hr</option>
-</select>
+        <textarea
+            id="logView"
+            rows="12"
+            style="width: 99%; background: #000; color: #0f0; font-size: 10px"
+        ></textarea>
 
-<label>Max Replay Points</label>
+        <label>Sample Interval</label>
+        <select id="interval" onchange="AndroidBridge.setInterval(this.value)">
+            <option value="1000">1 sec</option>
+            <option selected value="5000">5 sec</option>
+            <option value="15000">15 sec</option>
+            <option value="30000">30 sec</option>
+            <option value="60000">60 sec</option>
+            <option value="300000">5 min</option>
+            <option value="3600000">1 hr</option>
+        </select>
+
+        <label>Max Replay Points</label>
 <select id="maxReplayPoints" onchange="AndroidBridge.setMaxReplayPoints(this.value)">
-    <option value="100">100</option>
-    <option value="500">500</option>
-    <option value="1500">1500</option>
-    <option value="2500">2500</option>
-    <option value="25000">25000</option>
-    <option value="55000">55000</option>
-</select>
+            <option value="100">100</option>
+            <option value="500">500</option>
+            <option value="1500">1500</option>
+            <option value="2500">2500</option>
+            <option value="25000">25000</option>
+            <option value="55000">55000</option>
+        </select>
 
 <label><input type="checkbox" id="startup72hr"
               onchange="if(this.checked){document.getElementById('startupReplay').checked=false;}
@@ -174,20 +174,20 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
               onchange="if(this.checked){document.getElementById('startup72hr').checked=false;}
               AndroidBridge.setStartupReplay(this.checked);">Full replay on startup</label>
 
-<select id="replaySpeed">
-    <option value="500">0.5s</option>
-    <option value="200">0.2s</option>
-    <option value="100">0.1s</option>
-    <option value="50">50ms</option>
-    <option value="10">10ms</option>
-    <option value="1" selected>1ms</option>
-</select>
-<button onclick="replay()">Replay</button>
-<button onclick="replay72h()">72hr</button>
+        <select id="replaySpeed">
+            <option value="500">0.5s</option>
+            <option value="200">0.2s</option>
+            <option value="100">0.1s</option>
+            <option value="50">50ms</option>
+            <option value="10">10ms</option>
+            <option value="1" selected>1ms</option>
+        </select>
+        <button onclick="replay()">Replay</button>
+        <button onclick="replay72h()">72hr</button>
 
 <a href="https://github.com/somewiktadmin/Hansel/blob/main/PRIVACY.md" target="_blank">Privacy Policy</a>
 
-<script>
+        <script>
             const HANSEL_VERSION = "0.988";
 
             // say() is defined first, before everything else, so that any
@@ -234,16 +234,16 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
             // Logging interval in milliseconds.
             let interval = 5000; // 30000 30_000
             interval = AndroidBridge.getCurrentInterval();
-            onIntervalChanged( interval );
+            onIntervalChanged(interval);
 
             let logLines = [];
             let points = [];
             let isRunning = false;
             let lastMarkTime = 0;
 
-            let replayLines = [];   // was allLines, now module-level
-            let replayIndex = 0;    // was i, now module-level
-            let replaySpeed = 1;    // was local, now module-level
+            let replayLines = []; // was allLines, now module-level
+            let replayIndex = 0; // was i, now module-level
+            let replaySpeed = 1; // was local, now module-level
 
             const graph = document.getElementById("graph");
             const gctx = graph.getContext("2d");
@@ -972,7 +972,7 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
              *       monthly rollup files.  Replay of a monthly file works
              *       but can be very slow at 1ms intervals.
              */
-             function replay() {
+            function replay() {
                 let fileList = JSON.parse(AndroidBridge.getFileList());
                 document.getElementById("status").scrollIntoView();
                 if (!fileList.length) { say("No files found"); return; }
@@ -984,6 +984,8 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
                     let lines = contents.split("\n").filter((l) => l.trim());
                     replayLines = replayLines.concat(lines);
                 }
+
+                replayLines.sort();
 
                 replayIndex = 0;
                 replaySpeed = parseInt(document.getElementById("replaySpeed").value);
@@ -1004,49 +1006,48 @@ Caché:         $ZD($H,3)_"_"_$ZT($P($H,",",2))
              * files older than 72 hours may already be consumed into the
              * monthly rollup and unavailable here.
              */
-             function replay72h() {
-                    let fileList = JSON.parse(AndroidBridge.getFileList());
-                    document.getElementById("status").scrollIntoView();
+            function replay72h() {
+                let fileList = JSON.parse(AndroidBridge.getFileList());
+                document.getElementById("status").scrollIntoView();
                     if (!fileList.length) { say("No files found"); return; }
 
-                    let cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000);
-                    let pad = (n) => String(n).padStart(2, "0");
-                    let cutoffStr =
+                let cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000);
+                let pad = (n) => String(n).padStart(2, "0");
+                let cutoffStr =
                         cutoff.getFullYear() + "-" +
                         pad(cutoff.getMonth() + 1) + "-" +
                         pad(cutoff.getDate()) + "_" +
                         pad(cutoff.getHours()) + "-" +
                         pad(cutoff.getMinutes()) + "-" +
-                        pad(cutoff.getSeconds());
+                    pad(cutoff.getSeconds());
 
-                    let recent = fileList.filter(path => {
-                        let name = path.substring(path.lastIndexOf("/") + 1);
-                        if (name.match(/^\d{4}-\d{2}-00_/)) return false;
-                        return name >= cutoffStr;
-                    });
+                let recent = fileList.filter((path) => {
+                    let name = path.substring(path.lastIndexOf("/") + 1);
+                    if (name.match(/^\d{4}-\d{2}-00_/)) return false;
+                    return name >= cutoffStr;
+                });
 
                     say("replay72h: " + recent.length + " files after " + cutoffStr);
                     if (!recent.length) { say("No files in last 72h"); return; }
 
-                    replayLines = [];
-                    for (let path of recent) {
-                        let contents = AndroidBridge.readFile(path);
-                        let lines = contents.split("\n").filter((l) => l.trim());
-                        replayLines = replayLines.concat(lines);
-                    }
-
-                    replayIndex = 0;
-                    replaySpeed = parseInt(document.getElementById("replaySpeed").value);
-                    isReplaying = true;
-                    AndroidBridge.replayStarting();
-                    startReplayInterval();
+                replayLines = [];
+                for (let path of recent) {
+                    let contents = AndroidBridge.readFile(path);
+                    let lines = contents.split("\n").filter((l) => l.trim());
+                    replayLines = replayLines.concat(lines);
                 }
 
+                replayIndex = 0;
+                    replaySpeed = parseInt(document.getElementById("replaySpeed").value);
+                isReplaying = true;
+                AndroidBridge.replayStarting();
+                startReplayInterval();
+            }
 
             // Entry point.  Everything that touches the DOM or depends on
             // layout runs from here, after the browser guarantees layout is complete.
             window.addEventListener("load", main);
 
         </script>
-</body>
+    </body>
 </html>

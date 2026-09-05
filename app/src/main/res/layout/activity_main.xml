@@ -41,13 +41,17 @@
 
         <!-- skyBarBox - sky timeline, below gpsInfoOverlay.
                Line 0:    12    16    20    00    04    08    12  (header)
-             Lines 1+: DD|<36-char sky bar>, grows upward during replay.
+             Lines 1+: DD|<sky bar>, one line per date. Tap toggles
+             between showing only the latest line and the full
+             scrollable history/forecast buffer
              android:background="#4F000000"   for layout testing only
         -->
         <TextView
             android:id="@+id/skyBarBox"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:maxHeight="220dp"
+            android:scrollbars="vertical"
             android:layout_gravity="bottom|start"
             android:layout_marginTop="120dp"
             android:layout_marginStart="6dp"
